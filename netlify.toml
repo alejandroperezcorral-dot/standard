@@ -1,0 +1,62 @@
+[build]
+  publish = "."
+
+# Proxy Supabase through same domain — fixes Edge Tracking Prevention
+[[redirects]]
+  from = "/sb/*"
+  to = "https://vtyffyywmqnlfemzlsbz.supabase.co/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/explore"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/collections"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/mycompany"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/negotiation"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/closed"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/suppliers"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/chat"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

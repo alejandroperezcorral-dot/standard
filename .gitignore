@@ -1,0 +1,31 @@
+# Local Netlify folder
+.netlify/
+
+# Local rollback snapshots
+.codex-rollbacks/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+~$*
+
+# Deployment archives and generated exports
+*.zip
+deploy*.html
+buying-tool-deploy-*.zip
+zi*
+
+# Local working spreadsheets / binary reference files
+*.xlsx
+*.xlsb
+
+# OS/editor metadata
+.DS_Store
+Thumbs.db

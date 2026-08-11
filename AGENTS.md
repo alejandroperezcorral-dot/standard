@@ -1,0 +1,3 @@
+## Imported Claude Cowork project instructions
+
+QUIERO CREAR UNA HERRAMIENTA DE LISTA DE LA COMPRA CONECTADA A SUPABASE.
