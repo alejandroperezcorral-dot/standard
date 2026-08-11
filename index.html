@@ -1838,7 +1838,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -1851,6 +1851,10 @@ function statusDot(s){
   var c=SCOL[st]||SCOL.PENDING;
   return '<span class="status-pill" style="background:'+c.bg+';color:'+c.cl+'"><span style="font-size:10px;line-height:1">&#9679;</span>'+statusLabel(st)+'</span>';
 }
+function activeCollectionRef(){return CollectionsDomain.state.getActiveCollectionRef();}
+function setActiveCollectionRef(ref){return CollectionsDomain.state.setActiveCollectionRef(ref);}
+function clearActiveCollection(){return CollectionsDomain.state.clearActiveCollection();}
+function hasActiveCollection(){return CollectionsDomain.state.hasActiveCollection();}
 function sourceLabel(r){return styleSource(r);}
 function isOpenBuyingRow(r){return isOpenStyle(r);}
 function demoImage(seed){
@@ -2360,7 +2364,7 @@ function enterExploreAfterAuth(){
   hideAuthWalls();
   clearLoggedOutAppSurface();
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_SAVED_ONLY=false;
   SHOWROOM_SOURCE='';
   SHOWROOM_BOARD_MODE=false;
@@ -3999,7 +4003,7 @@ function showroomExploreAll(){
   clearShowroomSelectionIfContextChanges('showroom:explore');
   SHOWROOM_BOARD_MODE=false;
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_SOURCE='';
   SHOWROOM_SAVED_ONLY=false;
   ['sh-q','sh-supp','sh-season','sh-dept','sh-status'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
@@ -4012,7 +4016,7 @@ function showroomExploreAll(){
 }
 function showroomSupplierAlerts(){
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_SOURCE='SUPPLIER';
   SHOWROOM_SAVED_ONLY=false;
   SHOWROOM_FILTER_CAT='';SHOWROOM_FILTER_ORIGIN='';
@@ -4575,7 +4579,8 @@ function openStyleChat(id){
   _chatStyleId=parseInt(id);
   var r=ROWS.filter(function(x){return x.id===_chatStyleId;})[0];if(!r)return;
   if(isMobileChat())_chatMobileThreadOpen=true;
-  if(SHOWROOM_COLLECTIONS_VIEW&&SHOWROOM_FOLDER&&currentStyleCollections(r).indexOf(SHOWROOM_FOLDER)<0)SHOWROOM_FOLDER='';
+  var active=activeCollectionRef();
+  if(SHOWROOM_COLLECTIONS_VIEW&&active&&currentStyleCollections(r).indexOf(active)<0)clearActiveCollection();
   goTab('chat');
   renderChatPage();
 }
@@ -4870,7 +4875,8 @@ function renderStyleDetail(){
   h+='<div class="drawer-section-title">Collection</div>';
   h+='<div class="style-info-grid">';
   h+='<div><span>Choose collection</span><select id="detail-collection-select" onchange="toggleDetailCollectionMode(\'select\')"><option value="">Choose collection</option>';
-  var currentCollections=currentStyleCollections(r),currentCollection=(SHOWROOM_FOLDER&&currentCollections.indexOf(SHOWROOM_FOLDER)>=0)?SHOWROOM_FOLDER:(currentCollections[0]||'');
+  var active=activeCollectionRef();
+  var currentCollections=currentStyleCollections(r),currentCollection=(active&&currentCollections.indexOf(active)>=0)?active:(currentCollections[0]||'');
   showroomFolderNames().forEach(function(n){h+='<option value="'+escHtml(n)+'"'+(n===currentCollection?' selected':'')+'>'+escHtml(n)+'</option>';});
   h+='</select></div>';
   h+='</div>';
@@ -4929,8 +4935,8 @@ async function assignDetailStyleToCollection(){
   var stayInExplore=!SHOWROOM_COLLECTIONS_VIEW;
   var ok=await addStyleToCollection(r,name);
   if(!ok)return;
-  if(stayInExplore){SHOWROOM_FOLDER='';SHOWROOM_COLLECTIONS_VIEW=false;}
-  else SHOWROOM_FOLDER=name;
+  if(stayInExplore){clearActiveCollection();SHOWROOM_COLLECTIONS_VIEW=false;}
+  else setActiveCollectionRef(name);
   save();renderStyleDetail();renderShowroom();renderNeg();renderClosed();if(activePageName()==='chat')renderChatPage();updateBadge();
   toast('Added to '+name,'ok');
 }
@@ -4984,7 +4990,7 @@ function setShowroomFolder(name){
   if(name){openCollectionBoard(name);return;}
   clearShowroomSelectionIfContextChanges('showroom:explore');
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   renderShowroom();
   syncAppRoute('showroom');
 }
@@ -4992,7 +4998,7 @@ function setShowroomCollectionFilter(name){
   if(name){openCollectionBoard(name);return;}
   clearShowroomSelectionIfContextChanges('showroom:explore');
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   renderShowroom();
   syncAppRoute('showroom');
 }
@@ -5052,7 +5058,7 @@ function clearShowroomFilters(){
   EXPLORE_SEARCH='';
   SHOWROOM_FILTER_CAT='';SHOWROOM_FILTER_ORIGIN='';
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_SOURCE='';
   SHOWROOM_SAVED_ONLY=false;
   var g=document.getElementById('pin-global-search');if(g)g.value='';
@@ -5063,7 +5069,7 @@ function openManageCollections(){
   clearShowroomSelectionIfContextChanges('collections:index');
   SHOWROOM_BOARD_MODE=false;
   SHOWROOM_COLLECTIONS_VIEW=true;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_SAVED_ONLY=false;
   if(activePageName&&activePageName()!=='showroom')goTab('showroom');
   renderShowroom();
@@ -5092,14 +5098,14 @@ function createCollectionFromDrawer(){
 }
 async function assignSelectionFromDrawer(){
   if(!requireAuthAction())return;
-  var name=(SHOWROOM_FOLDER||'').trim();
+  var name=(activeCollectionRef()||'').trim();
   var ids=selectedShowroomIds();
   if(!ids.length){toast('Select styles first','warn');return;}
   if(!name){toast('Choose or create a collection','warn');return;}
   var added=0;
   for(var i=0;i<ROWS.length;i++)if(ids.indexOf(ROWS[i].id)>=0&&await addStyleToCollection(ROWS[i],name))added++;
   if(!added){toast('No styles were assigned','warn');return;}
-  SHOWROOM_FOLDER=name;SHOWROOM_SELECTED={};
+  setActiveCollectionRef(name);SHOWROOM_SELECTED={};
   save();renderCollectionsDrawer();renderShowroom();renderNeg();renderClosed();updateBadge();
   toast(added+' style'+(added!==1?'s':'')+' added to '+name,'ok');
 }
@@ -5978,7 +5984,7 @@ function closeSupplierProfile(){
   var modal=document.getElementById('supplier-profile-modal');if(modal){modal.style.display='none';modal.classList.remove('open');}
 }
 function openSupplierPortfolio(name){
-  SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_FOLDER='';SHOWROOM_SAVED_ONLY=false;SHOWROOM_SOURCE='SUPPLIER';
+  SHOWROOM_COLLECTIONS_VIEW=false;clearActiveCollection();SHOWROOM_SAVED_ONLY=false;SHOWROOM_SOURCE='SUPPLIER';
   var e=document.getElementById('sh-supp');if(e)e.value=name;
   goTab('showroom');
   setTimeout(function(){var s=document.getElementById('sh-supp');if(s){s.value=name;renderShowroom();}},60);
@@ -6398,14 +6404,14 @@ async function removeCompanyTeamUser(uid,email){
 function openCollectionBoard(name){
   clearShowroomSelectionIfContextChanges('collections:'+(name||''));
   SHOWROOM_COLLECTIONS_VIEW=true;
-  SHOWROOM_FOLDER=name||'';
+  setActiveCollectionRef(name||'');
   renderShowroom();
   syncAppRoute('showroom');
 }
 function backToCollectionsBoard(){
   clearShowroomSelectionIfContextChanges('collections:index');
   SHOWROOM_COLLECTIONS_VIEW=true;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   renderShowroom();
   syncAppRoute('showroom');
 }
@@ -6416,14 +6422,16 @@ function renderCollectionsBoard(){
   var q=collectionSearchQuery();
   var visibleNames=names.filter(function(n){return collectionPassesScope(n)&&collectionPassesPeriod(n)&&collectionMatchesSearch(n,q);});
   var h='<div class="collections-page">';
-  if(SHOWROOM_FOLDER&&!collectionPassesScope(SHOWROOM_FOLDER)){
-    SHOWROOM_FOLDER='';
+  var active=activeCollectionRef();
+  if(active&&!collectionPassesScope(active)){
+    clearActiveCollection();
+    active='';
     SHOWROOM_COLLECTIONS_VIEW=true;
   }
-  if(SHOWROOM_FOLDER){
-    var detailMeta=collectionMetaByRef(SHOWROOM_FOLDER)||{},folderName=collectionDisplayName(SHOWROOM_FOLDER,detailMeta);
-    var folderOwnMatch=collectionMatchesSearch(SHOWROOM_FOLDER,q)&&([folderName,detailMeta.owner_company||detailMeta.company,detailMeta.owner_group||detailMeta.group,detailMeta.fsd,collectionCreatorEmail(detailMeta)].join(' ').toLowerCase().indexOf(q)>=0);
-    var detailRows=q&&!folderOwnMatch?collectionRows(SHOWROOM_FOLDER).filter(function(r){return collectionRowMatchesSearch(r,q);}):collectionRows(SHOWROOM_FOLDER),sum=collectionSummary(detailRows);
+  if(active){
+    var detailMeta=collectionMetaByRef(active)||{},folderName=collectionDisplayName(active,detailMeta);
+    var folderOwnMatch=collectionMatchesSearch(active,q)&&([folderName,detailMeta.owner_company||detailMeta.company,detailMeta.owner_group||detailMeta.group,detailMeta.fsd,collectionCreatorEmail(detailMeta)].join(' ').toLowerCase().indexOf(q)>=0);
+    var detailRows=q&&!folderOwnMatch?collectionRows(active).filter(function(r){return collectionRowMatchesSearch(r,q);}):collectionRows(active),sum=collectionSummary(detailRows);
     var meta=detailMeta,fsdText=meta.fsd?' - FSD '+meta.fsd:'';
     h+=CollectionsDomain.renderer.detailHeader({folderName:folderName,count:detailRows.length,fsdText:fsdText,summary:sum,supplierCanShare:isSupplierUser()&&!isAdmin(),canRemove:canDeleteCollectionMeta(meta),helpers:{escHtml:escHtml,formatNumber:fN,formatPercent:fP}});
     if(!detailRows.length)h+=CollectionsDomain.renderer.emptyState('detail');
@@ -6468,7 +6476,8 @@ function showroomRows(){
     }
     if(fst&&st!==fst)return false;
     if(SHOWROOM_SOURCE&&sourceLabel(r)!==SHOWROOM_SOURCE)return false;
-    if(SHOWROOM_COLLECTIONS_VIEW&&SHOWROOM_FOLDER&&currentStyleCollections(r).indexOf(SHOWROOM_FOLDER)<0)return false;
+    var active=activeCollectionRef();
+    if(SHOWROOM_COLLECTIONS_VIEW&&active&&currentStyleCollections(r).indexOf(active)<0)return false;
     if(!SHOWROOM_COLLECTIONS_VIEW&&styleAssignedToCurrentBrandCollection(r))return false;
     if(SHOWROOM_SAVED_ONLY&&savedShowroomIds().indexOf(parseInt(r.id))<0)return false;
     if(fs&&(r.supplier||'')!==fs)return false;
@@ -6509,9 +6518,10 @@ function renderShowroom(){
   var cf=document.getElementById('sh-filter-collection');
   if(cf){
     var ch='<option value="">All collections</option>';
-    showroomFolderNames().forEach(function(n){ch+='<option value="'+escHtml(n)+'"'+(SHOWROOM_COLLECTIONS_VIEW&&SHOWROOM_FOLDER===n?' selected':'')+'>'+escHtml(n)+'</option>';});
+    var active=activeCollectionRef();
+    showroomFolderNames().forEach(function(n){ch+='<option value="'+escHtml(n)+'"'+(SHOWROOM_COLLECTIONS_VIEW&&active===n?' selected':'')+'>'+escHtml(n)+'</option>';});
     cf.innerHTML=ch;
-    cf.value=SHOWROOM_COLLECTIONS_VIEW?(SHOWROOM_FOLDER||''):'';
+    cf.value=SHOWROOM_COLLECTIONS_VIEW?(active||''):'';
   }
   var stEl=document.getElementById('sh-status');
   if(stEl){
@@ -6587,7 +6597,7 @@ function resetShowroomSelection(){
 }
 function showroomSelectionContext(){
   if(activePageName&&activePageName()!=='showroom')return activePageName();
-  if(SHOWROOM_COLLECTIONS_VIEW)return 'collections:'+(SHOWROOM_FOLDER||'index');
+  if(SHOWROOM_COLLECTIONS_VIEW)return 'collections:'+(activeCollectionRef()||'index');
   if(SHOWROOM_SAVED_ONLY)return 'showroom:saved';
   return 'showroom:explore';
 }
@@ -6663,14 +6673,14 @@ function submitShareBrands(){
 }
 function shareCurrentCollection(){
   if(!isSupplierUser()||isAdmin()){toast('Sharing collections is available for supplier accounts','warn');return;}
-  var rows=collectionRows(SHOWROOM_FOLDER||'').filter(supplierOwnsStyle);
+  var rows=collectionRows(activeCollectionRef()||'').filter(supplierOwnsStyle);
   if(!rows.length){toast('This collection has no supplier styles to share','warn');return;}
   _shareOverrideIds=rows.map(function(r){return r.id;});
   openShareBrandsModal();
 }
 async function removeSelectedFromCurrentCollection(){
   if(!requireAuthAction())return;
-  var ids=selectedShowroomIds(),name=(SHOWROOM_FOLDER||'').trim();
+  var ids=selectedShowroomIds(),name=(activeCollectionRef()||'').trim();
   if(!ids.length){toast('Select styles first','warn');return;}
   if(!SHOWROOM_COLLECTIONS_VIEW||!name){toast('Open a collection first','warn');return;}
   var moved=0;
@@ -6678,7 +6688,7 @@ async function removeSelectedFromCurrentCollection(){
   if(!moved){toast('No styles were removed','warn');return;}
   SHOWROOM_SELECTED={};
   SHOWROOM_COLLECTIONS_VIEW=false;
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_SOURCE='';
   SHOWROOM_SAVED_ONLY=false;
   ['sh-q','sh-supp','sh-season','sh-dept','sh-status'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
@@ -6703,7 +6713,7 @@ function cleanupRemovedStyles(ids){
 function renderShowroomBulkbar(){
   var ids=selectedShowroomIds();
   var bar=document.getElementById('showroom-bulkbar'),ct=document.getElementById('showroom-sel-count'),add=document.getElementById('showroom-add-to-collection'),share=document.getElementById('showroom-share-brands'),rm=document.getElementById('showroom-remove-from-collection');
-  var inCollection=SHOWROOM_COLLECTIONS_VIEW&&SHOWROOM_FOLDER&&ids.length;
+  var inCollection=SHOWROOM_COLLECTIONS_VIEW&&hasActiveCollection()&&ids.length;
   if(ct)ct.textContent=ids.length+' selected';
   if(add)add.style.display=inCollection?'none':'inline-flex';
   if(share)share.style.display=(ids.length&&isSupplierUser()&&!isAdmin())?'inline-flex':'none';
@@ -6724,7 +6734,7 @@ function renderShowroomSidebar(){
 }
 function createShowroomCollection(){
   if(!requireAuthAction())return;
-  if(SHOWROOM_COLLECTIONS_VIEW&&SHOWROOM_FOLDER){toast('Create collections from My Collections','warn');return;}
+  if(SHOWROOM_COLLECTIONS_VIEW&&hasActiveCollection()){toast('Create collections from My Collections','warn');return;}
   openCreateCollectionModal();
 }
 function openCreateCollectionModal(context){
@@ -6761,10 +6771,11 @@ function fillCollectionModalGroups(value){
 }
 function openEditCollectionModal(){
   if(!requireAuthAction())return;
-  if(!SHOWROOM_FOLDER){toast('Open a collection first','warn');return;}
+  var active=activeCollectionRef();
+  if(!active){toast('Open a collection first','warn');return;}
   _collectionCreateContext='';
-  _collectionEditOriginal=SHOWROOM_FOLDER;
-  var meta=collectionMetaByRef(SHOWROOM_FOLDER),display=collectionDisplayName(SHOWROOM_FOLDER,meta);
+  _collectionEditOriginal=active;
+  var meta=collectionMetaByRef(active),display=collectionDisplayName(active,meta);
   var title=document.getElementById('collection-modal-title'),ok=document.getElementById('collection-modal-submit');
   if(title)title.textContent='Edit collection';
   if(ok)ok.textContent='Save';
@@ -6794,7 +6805,7 @@ async function submitCreateCollection(){
     if(r&&!(await addStyleToCollection(r,collectionRef)))return;
   }
   SHOWROOM_COLLECTIONS_VIEW=true;
-  SHOWROOM_FOLDER=collectionRef;
+  setActiveCollectionRef(collectionRef);
   CollectionsDomain.state.setScope(group?'groups':'mine');
   closeCreateCollectionModal();
   save();
@@ -6820,7 +6831,7 @@ async function submitEditCollection(name,fsd,company,group){
     });
     CollectionsDomain.state.removeCollectionMetaEntry(oldKey);
     CollectionsDomain.state.removeCollectionMetaEntry(old);
-    SHOWROOM_FOLDER=collectionScopeKeyFromParts(ownerType,ownerCompany,group||'')+'::'+name;
+    setActiveCollectionRef(collectionScopeKeyFromParts(ownerType,ownerCompany,group||'')+'::'+name);
     try{await renameScopedCollectionRemote(oldName,name,newMeta,oldMeta);}
     catch(e){toast('Error updating collection: '+(e.message||JSON.stringify(e)),'err');return;}
   }else rememberShowroomCollectionWithMeta(name,newMeta);
@@ -6841,7 +6852,7 @@ async function submitEditCollection(name,fsd,company,group){
 }
 async function removeCurrentCollection(){
   if(!requireAuthAction())return;
-  var ref=(SHOWROOM_FOLDER||'').trim();
+  var ref=(activeCollectionRef()||'').trim();
   if(!ref){toast('Open a collection first','warn');return;}
   var meta=collectionMetaByRef(ref)||{},name=collectionDisplayName(ref,meta);
   if(!canDeleteCollectionMeta(meta)){toast('Only Platform Admin can remove collections created by other users','err');return;}
@@ -6849,7 +6860,7 @@ async function removeCurrentCollection(){
   if(!confirm('Permanently delete collection "'+name+'"? '+rows.length+' style'+(rows.length!==1?'s':'')+' will stay in STDTEX but will no longer belong to this collection. This cannot be restored.'))return;
   try{await deleteCompanyCollectionExplicit(Object.assign({},meta,{name:name}));}
   catch(e){toast('Error removing collection: '+(e.message||JSON.stringify(e)),'err');return;}
-  SHOWROOM_FOLDER='';
+  clearActiveCollection();
   SHOWROOM_COLLECTIONS_VIEW=true;
   SHOWROOM_SELECTED={};
   save();
@@ -6885,8 +6896,8 @@ async function assignSelectedToCollection(){
   var added=0;
   for(var i=0;i<ROWS.length;i++)if(ids.indexOf(ROWS[i].id)>=0&&await addStyleToCollection(ROWS[i],name))added++;
   if(!added){toast('No styles were assigned','warn');return;}
-  if(stayInExplore){SHOWROOM_FOLDER='';SHOWROOM_COLLECTIONS_VIEW=false;}
-  else SHOWROOM_FOLDER=name;
+  if(stayInExplore){clearActiveCollection();SHOWROOM_COLLECTIONS_VIEW=false;}
+  else setActiveCollectionRef(name);
   closeAssignCollectionModal();
   SHOWROOM_SELECTED={};
   save();renderShowroom();renderNeg();renderClosed();updateBadge();
@@ -8013,7 +8024,7 @@ function openNegotiationList(tab){
 function goTab(name){
   if((name==='neg'||name==='closed')&&!canUseBuyingList()){
     name='showroom';
-    SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_FOLDER='';SHOWROOM_SOURCE='';SHOWROOM_SAVED_ONLY=false;
+    SHOWROOM_COLLECTIONS_VIEW=false;clearActiveCollection();SHOWROOM_SOURCE='';SHOWROOM_SAVED_ONLY=false;
   }
   var previousPage=activePageName&&activePageName();
   if(name!=='showroom'||previousPage!=='showroom')clearShowroomSelectionIfContextChanges(name);

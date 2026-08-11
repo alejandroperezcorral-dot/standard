@@ -4,7 +4,8 @@ function createCollectionState(initial){
     groupFilters:Array.isArray(initial&&initial.groupFilters)?initial.groupFilters.slice():[],
     collections:Array.isArray(initial&&initial.collections)?initial.collections.slice():[],
     collectionMeta:Object.assign({},(initial&&initial.collectionMeta)||{}),
-    assignments:Array.isArray(initial&&initial.assignments)?initial.assignments.slice():[]
+    assignments:Array.isArray(initial&&initial.assignments)?initial.assignments.slice():[],
+    activeCollectionRef:String(initial&&initial.activeCollectionRef||'')
   };
   function unique(values){
     return (values||[]).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
@@ -123,6 +124,20 @@ function createCollectionState(initial){
       state.assignments=[];
       return state.assignments.slice();
     },
+    getActiveCollectionRef:function(){
+      return state.activeCollectionRef;
+    },
+    setActiveCollectionRef:function(ref){
+      state.activeCollectionRef=String(ref||'').trim();
+      return state.activeCollectionRef;
+    },
+    clearActiveCollection:function(){
+      state.activeCollectionRef='';
+      return state.activeCollectionRef;
+    },
+    hasActiveCollection:function(){
+      return !!state.activeCollectionRef;
+    },
     setGroupFilters:function(filters){
       state.groupFilters=unique(Array.isArray(filters)?filters.slice():[]);
       return state.groupFilters.slice();
@@ -144,12 +159,13 @@ function createCollectionState(initial){
       state.collections=unique(Array.isArray(next&&next.collections)?next.collections.slice():[]);
       state.collectionMeta=Object.assign({},(next&&next.collectionMeta)||{});
       state.assignments=Array.isArray(next&&next.assignments)?next.assignments.slice():[];
+      state.activeCollectionRef=String(next&&next.activeCollectionRef||'');
       return this.snapshot();
     },
     snapshot:function(){
-      return {scope:state.scope,groupFilters:state.groupFilters.slice(),collections:state.collections.slice(),collectionMeta:Object.assign({},state.collectionMeta),assignments:state.assignments.slice()};
+      return {scope:state.scope,groupFilters:state.groupFilters.slice(),collections:state.collections.slice(),collectionMeta:Object.assign({},state.collectionMeta),assignments:state.assignments.slice(),activeCollectionRef:state.activeCollectionRef};
     }
   };
 }
 
-var CollectionState=createCollectionState({scope:'mine',groupFilters:[],collections:[],collectionMeta:{},assignments:[]});
+var CollectionState=createCollectionState({scope:'mine',groupFilters:[],collections:[],collectionMeta:{},assignments:[],activeCollectionRef:''});

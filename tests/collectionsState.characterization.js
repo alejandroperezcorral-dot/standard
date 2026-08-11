@@ -5,10 +5,10 @@ const assert = require('assert');
 vm.runInThisContext(fs.readFileSync('src/features/collections/collectionState.js', 'utf8'));
 
 const state = createCollectionState();
-assert.deepStrictEqual(state.snapshot(), { scope: 'mine', groupFilters: [], collections: [], collectionMeta: {}, assignments: [] }, 'initial state matches legacy collections scope');
+assert.deepStrictEqual(state.snapshot(), { scope: 'mine', groupFilters: [], collections: [], collectionMeta: {}, assignments: [], activeCollectionRef: '' }, 'initial state matches legacy collections scope');
 
 assert.strictEqual(state.setScope('groups'), 'groups', 'sets group scope');
-assert.deepStrictEqual(state.snapshot(), { scope: 'groups', groupFilters: [], collections: [], collectionMeta: {}, assignments: [] }, 'scope change does not add filters');
+assert.deepStrictEqual(state.snapshot(), { scope: 'groups', groupFilters: [], collections: [], collectionMeta: {}, assignments: [], activeCollectionRef: '' }, 'scope change does not add filters');
 
 state.setGroupFilters(['Boys 13+', 'Boys 13+', '', 'Girls 13+']);
 assert.deepStrictEqual(state.getGroupFilters(), ['Boys 13+', 'Girls 13+'], 'deduplicates assigned group filters');
@@ -30,12 +30,12 @@ state.setScope('invalid');
 assert.strictEqual(state.getScope(), 'mine', 'invalid scope falls back to mine like legacy behavior');
 
 state.reset({ scope: 'groups', groupFilters: ['Denim'] });
-assert.deepStrictEqual(state.snapshot(), { scope: 'groups', groupFilters: ['Denim'], collections: [], collectionMeta: {}, assignments: [] }, 'reset hydrates a known state');
+assert.deepStrictEqual(state.snapshot(), { scope: 'groups', groupFilters: ['Denim'], collections: [], collectionMeta: {}, assignments: [], activeCollectionRef: '' }, 'reset hydrates a known state');
 
 state.reset();
-assert.deepStrictEqual(state.snapshot(), { scope: 'mine', groupFilters: [], collections: [], collectionMeta: {}, assignments: [] }, 'reset without args returns initial state');
+assert.deepStrictEqual(state.snapshot(), { scope: 'mine', groupFilters: [], collections: [], collectionMeta: {}, assignments: [], activeCollectionRef: '' }, 'reset without args returns initial state');
 
-assert.deepStrictEqual(CollectionState.snapshot(), { scope: 'mine', groupFilters: [], collections: [], collectionMeta: {}, assignments: [] }, 'default singleton starts with legacy state');
+assert.deepStrictEqual(CollectionState.snapshot(), { scope: 'mine', groupFilters: [], collections: [], collectionMeta: {}, assignments: [], activeCollectionRef: '' }, 'default singleton starts with legacy state');
 
 state.setCollections(['B', 'A', 'B', '', null]);
 assert.deepStrictEqual(state.getCollections(), ['B', 'A'], 'setCollections deduplicates and preserves hydrated order');
@@ -58,7 +58,7 @@ state.removeCollections(v => v === 'B');
 assert.deepStrictEqual(state.getCollections(), ['A', 'C'], 'removeCollections removes matching refs');
 
 state.reset({ scope: 'groups', groupFilters: ['Denim'], collections: ['Z', 'Y', 'Z'] });
-assert.deepStrictEqual(state.snapshot(), { scope: 'groups', groupFilters: ['Denim'], collections: ['Z', 'Y'], collectionMeta: {}, assignments: [] }, 'reset hydrates collections without sorting');
+assert.deepStrictEqual(state.snapshot(), { scope: 'groups', groupFilters: ['Denim'], collections: ['Z', 'Y'], collectionMeta: {}, assignments: [], activeCollectionRef: '' }, 'reset hydrates collections without sorting');
 
 const personalMeta = {
   scope: 'brand:gloria jeans',
@@ -125,7 +125,8 @@ assert.deepStrictEqual(state.snapshot(), {
   groupFilters: ['Boys 13+'],
   collections: ['brand:gloria jeans::Renamed'],
   collectionMeta: { 'brand:gloria jeans::Renamed': Object.assign({}, personalMeta, { name: 'Renamed', fsd: '2027-03-01' }) },
-  assignments: []
+  assignments: [],
+  activeCollectionRef: ''
 }, 'rehydration preserves metadata and collection state together');
 
 const assignments = [
@@ -154,4 +155,12 @@ assert.deepStrictEqual(state.getAssignments(), assignments.slice(0, 1), 'reset h
 state.resetAssignments();
 assert.deepStrictEqual(state.getAssignments(), [], 'resetAssignments clears hydrated assignments');
 
-console.log('collections state characterization ok 49');
+assert.strictEqual(state.hasActiveCollection(), false, 'active collection starts empty');
+assert.strictEqual(state.setActiveCollectionRef('brand:gloria jeans::Denim'), 'brand:gloria jeans::Denim', 'setActiveCollectionRef stores the active collection ref');
+assert.strictEqual(state.getActiveCollectionRef(), 'brand:gloria jeans::Denim', 'getActiveCollectionRef returns the active collection ref');
+assert.strictEqual(state.hasActiveCollection(), true, 'hasActiveCollection reflects detail navigation state');
+assert.strictEqual(state.clearActiveCollection(), '', 'clearActiveCollection clears the active collection ref');
+state.reset({ activeCollectionRef: 'supplier:stw::Capsule', assignments: [] });
+assert.strictEqual(state.getActiveCollectionRef(), 'supplier:stw::Capsule', 'reset can hydrate active collection ref');
+
+console.log('collections state characterization ok 55');
