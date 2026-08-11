@@ -11,6 +11,8 @@
 <script src="src/core/formatting.js"></script>
 <script src="src/core/escaping.js"></script>
 <script src="src/core/router.js"></script>
+<script src="src/supabase/client.js"></script>
+<script src="src/supabase/repositories/storageRepository.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -8563,10 +8565,10 @@ function compressImage(file, cb, maxPx, quality){
 function uploadToStorage(file, path, cb) {
   compressImage(file, function(b64) {
     fetch(b64).then(function(r){ return r.blob(); }).then(function(blob) {
-      sb.storage.from('product-photos').upload(path, blob, {contentType:'image/jpeg', upsert:true})
+      uploadProductPhotoToStorage(path, blob)
         .then(function(res) {
           if (res.error) { cb(b64); return; }
-          var ud = sb.storage.from('product-photos').getPublicUrl(path);
+          var ud = getProductPhotoPublicUrl(path);
           cb(ud.data.publicUrl);
         })
         .catch(function() { cb(b64); });
