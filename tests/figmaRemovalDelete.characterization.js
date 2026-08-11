@@ -23,7 +23,7 @@ assert(!/figma/i.test(styleDependencyDelete), 'style dependency delete has no Fi
 
 const deletedStyleCleanup = functionBody('cleanupDeletedStyleReferences');
 assert(deletedStyleCleanup.includes('cleanupRemovedStyles'), 'style delete still cleans local rows');
-assert(deletedStyleCleanup.includes('SHOWROOM_COLLECTION_ASSIGNMENTS'), 'style delete still cleans local collection assignments');
+assert(deletedStyleCleanup.includes('CollectionsDomain.state.removeAssignmentsWhere'), 'style delete still cleans local collection assignments through Collections state');
 assert(deletedStyleCleanup.includes('loadCanvases'), 'style delete still checks Canvas catalog');
 assert(deletedStyleCleanup.includes('linked_style_id'), 'style delete still removes linked Canvas style items');
 assert(deletedStyleCleanup.includes('persistCanvases'), 'style delete still persists Canvas cleanup');
@@ -34,7 +34,7 @@ const collectionDelete = functionBody('deleteCompanyCollectionExplicit');
   'CollectionsDomain.state.removeCollectionMetaEntry',
   'CollectionsDomain.state.removeCollectionMetaWhere',
   'CollectionsDomain.state.removeCollections',
-  'SHOWROOM_COLLECTION_ASSIGNMENTS',
+  'CollectionsDomain.state.removeAssignmentsWhere',
   'setStyleMeta',
   'styleBrandCollectionMap',
   'styleCollections'

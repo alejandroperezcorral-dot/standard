@@ -1838,7 +1838,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -3553,7 +3553,7 @@ function cleanupDeletedStyleReferences(ids){
   ids=(ids||[]).map(function(x){return parseInt(x);}).filter(Boolean);
   if(!ids.length)return;
   cleanupRemovedStyles(ids);
-  SHOWROOM_COLLECTION_ASSIGNMENTS=(SHOWROOM_COLLECTION_ASSIGNMENTS||[]).filter(function(a){return ids.indexOf(parseInt(a.row_id))<0;});
+  CollectionsDomain.state.removeAssignmentsWhere(function(a){return ids.indexOf(parseInt(a.row_id))>=0;});
   try{
     loadCanvases();
     var changed=false;
@@ -4189,6 +4189,21 @@ async function persistScopedCollection(name,meta){
 async function persistScopedAssignment(r,name,action){
   return CollectionsDomain.persistScopedAssignment(r,name,action,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionMetaByRef:collectionMetaByRef,collectionDisplayName:collectionDisplayName,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER});
 }
+function assignmentStateRowForStyleCollection(r,name,meta){
+  meta=meta||{};
+  var group=Object.prototype.hasOwnProperty.call(meta,'owner_group')?meta.owner_group:meta.group;
+  var scope=collectionScopeInfo(group);
+  if(meta.owner_company)scope.owner_company=meta.owner_company;
+  if(meta.owner_type)scope.owner_type=meta.owner_type;
+  if(Object.prototype.hasOwnProperty.call(meta,'owner_group'))scope.owner_group=meta.owner_group||'';
+  return {row_id:r&&r.id,owner_company:scope.owner_company||'',owner_group:scope.owner_group||'',owner_type:scope.owner_type||'Brand',collection_name:collectionDisplayName(name,meta),created_by:AUTH_USER?AUTH_USER.id:null};
+}
+function assignmentStateSameScope(a,b){
+  return String(a&&a.row_id||'')===String(b&&b.row_id||'')&&normCompanyName(a&&a.owner_company||'')===normCompanyName(b&&b.owner_company||'')&&String(a&&a.owner_type||'Brand')===String(b&&b.owner_type||'Brand')&&String(a&&a.owner_group||'')===String(b&&b.owner_group||'');
+}
+function assignmentStateSameCollection(a,b){
+  return assignmentStateSameScope(a,b)&&String(a&&a.collection_name||'')===String(b&&b.collection_name||'');
+}
 async function renameScopedCollectionRemote(oldName,newName,meta,oldMeta){
   return CollectionsDomain.renameScopedCollectionRemote(oldName,newName,meta,oldMeta,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER,isCompanyAdmin:isCompanyAdmin,missingColumnError:missingColumnError});
 }
@@ -4199,7 +4214,7 @@ async function loadScopedCollections(){
   if(!isLoggedIn())return;
   var scope=collectionScopeInfo();
   if(!scope.owner_company&&!isAdmin())return;
-  SHOWROOM_COLLECTION_ASSIGNMENTS=[];
+  CollectionsDomain.state.resetAssignments();
   try{
     var cq=sb.from('showroom_collections_scoped').select('*');
     if(!isAdmin())cq=cq.eq('owner_company',scope.owner_company).eq('owner_type',scope.owner_type);
@@ -4219,7 +4234,7 @@ async function loadScopedCollections(){
     if(!a.error&&(a.data||[]).length){
       var byRow={};
       var visibleAssignments=a.data.filter(scopedAssignmentVisibleToCurrentUser);
-      SHOWROOM_COLLECTION_ASSIGNMENTS=visibleAssignments;
+      CollectionsDomain.state.setAssignments(visibleAssignments);
       visibleAssignments.forEach(function(x){
         if(!byRow[x.row_id])byRow[x.row_id]=[];
         if(x.collection_name)byRow[x.row_id].push(x);
@@ -4362,7 +4377,7 @@ function companyCollectionsList(companyName,type){
   return out.sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));});
 }
 function collectionRowsForMeta(meta){
-  return CollectionsDomain.rowsForMeta(meta,{rows:ROWS,assignments:SHOWROOM_COLLECTION_ASSIGNMENTS,normalizeName:normCompanyName,assignmentMatchesCollectionMeta:assignmentMatchesCollectionMeta,styleCollections:styleCollections,styleBrandCollectionMap:styleBrandCollectionMap,brandCollectionMapHasNameForMeta:brandCollectionMapHasNameForMeta});
+  return CollectionsDomain.rowsForMeta(meta,{rows:ROWS,assignments:CollectionsDomain.state.getAssignments(),normalizeName:normCompanyName,assignmentMatchesCollectionMeta:assignmentMatchesCollectionMeta,styleCollections:styleCollections,styleBrandCollectionMap:styleBrandCollectionMap,brandCollectionMapHasNameForMeta:brandCollectionMapHasNameForMeta});
 }
 function collectionCompanySummary(meta){return collectionSummary(collectionRowsForMeta(meta));}
 function adminCollectionGroupOptions(companyName,selected){
@@ -4410,6 +4425,10 @@ async function updateCompanyCollectionExplicit(oldMeta,newName,fsd,newGroup){
   CollectionsDomain.state.setCollectionMetaEntry(newStore,Object.assign({},oldMeta,{scope:newKey,name:newName,fsd:fsd||'',owner_company:company,owner_group:result.newGroup||'',owner_type:type,company:company,group:result.newGroup||''}));
   CollectionsDomain.state.removeCollections(function(x){return x===oldStore||x===oldName;});
   CollectionsDomain.state.addCollection(newStore);
+  CollectionsDomain.state.setAssignments(CollectionsDomain.state.getAssignments().map(function(x){
+    if(String(x.collection_name||'')===oldName&&normCompanyName(x.owner_company||'')===normCompanyName(company)&&String(x.owner_type||type)===String(type)&&String(x.owner_group||'')===String(oldGroup||''))return Object.assign({},x,{collection_name:newName,owner_group:result.newGroup||''});
+    return x;
+  }));
 }
 async function deleteCompanyCollectionExplicit(meta){
   if(!meta||!meta.name)return;
@@ -4436,8 +4455,8 @@ async function deleteCompanyCollectionExplicit(meta){
     return (m.name||k)===name&&normCompanyName(m.owner_company||m.company||company)===normCompanyName(company)&&String(m.owner_type||type)===String(type)&&(m.owner_group||m.group||'')===group;
   });
   CollectionsDomain.state.removeCollections(function(x){return x===storeKey||x===name;});
-  SHOWROOM_COLLECTION_ASSIGNMENTS=(SHOWROOM_COLLECTION_ASSIGNMENTS||[]).filter(function(x){
-    return !(String(x.collection_name||'')===name&&normCompanyName(x.owner_company||'')===normCompanyName(company)&&String(x.owner_type||type)===String(type)&&String(x.owner_group||'')===String(group||''));
+  CollectionsDomain.state.removeAssignmentsWhere(function(x){
+    return String(x.collection_name||'')===name&&normCompanyName(x.owner_company||'')===normCompanyName(company)&&String(x.owner_type||type)===String(type)&&String(x.owner_group||'')===String(group||'');
   });
 }
 async function saveCompanyCollectionFromManager(i){
@@ -4520,6 +4539,9 @@ async function addStyleToCollection(r,name){
     toast('Error saving collection: '+(e.message||JSON.stringify(e)),'err');
     return false;
   }
+  var assignment=assignmentStateRowForStyleCollection(r,name,meta);
+  CollectionsDomain.state.removeAssignmentsWhere(function(x){return assignmentStateSameScope(x,assignment)&&String(x.collection_name||'')!==String(assignment.collection_name||'');});
+  CollectionsDomain.state.addAssignment(assignment,function(x){return assignmentStateSameCollection(x,assignment);});
   setCurrentStyleCollections(r,[collectionName],group);
   if(before&&before!==collectionName)addStyleAuditMessage(r,'Collection moved from '+before+' to '+collectionName);
   else if(!before)addStyleAuditMessage(r,'Collection assigned to '+collectionName);
@@ -4537,6 +4559,8 @@ async function removeStyleFromCollection(r,name){
     toast('Error updating collection: '+(e.message||JSON.stringify(e)),'err');
     return false;
   }
+  var assignment=assignmentStateRowForStyleCollection(r,name,meta);
+  CollectionsDomain.state.removeAssignmentsWhere(function(x){return assignmentStateSameCollection(x,assignment);});
   setCurrentStyleCollections(r,next,Object.prototype.hasOwnProperty.call(meta,'owner_group')?meta.owner_group:meta.group);
   addStyleAuditMessage(r,'Collection removed: '+collectionName);
   return true;

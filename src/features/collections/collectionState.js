@@ -3,7 +3,8 @@ function createCollectionState(initial){
     scope:(initial&&initial.scope)==='groups'?'groups':'mine',
     groupFilters:Array.isArray(initial&&initial.groupFilters)?initial.groupFilters.slice():[],
     collections:Array.isArray(initial&&initial.collections)?initial.collections.slice():[],
-    collectionMeta:Object.assign({},(initial&&initial.collectionMeta)||{})
+    collectionMeta:Object.assign({},(initial&&initial.collectionMeta)||{}),
+    assignments:Array.isArray(initial&&initial.assignments)?initial.assignments.slice():[]
   };
   function unique(values){
     return (values||[]).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
@@ -78,6 +79,50 @@ function createCollectionState(initial){
       });
       return this.getCollectionMeta();
     },
+    getAssignments:function(){
+      return state.assignments.slice();
+    },
+    setAssignments:function(assignments){
+      state.assignments=Array.isArray(assignments)?assignments.slice():[];
+      return state.assignments.slice();
+    },
+    getAssignmentsForStyle:function(styleId){
+      styleId=String(styleId||'');
+      return state.assignments.filter(function(assignment){return String(assignment&&assignment.row_id||'')===styleId;});
+    },
+    getAssignmentsForCollection:function(collectionRef,matcher){
+      var fn=typeof matcher==='function'?matcher:null;
+      return state.assignments.filter(function(assignment){
+        if(fn)return fn(assignment,collectionRef);
+        return String(assignment&&assignment.collection_name||'')===String(collectionRef||'');
+      });
+    },
+    hasAssignment:function(match){
+      if(typeof match==='function')return state.assignments.some(match);
+      return state.assignments.indexOf(match)>=0;
+    },
+    addAssignment:function(assignment,matcher){
+      if(!assignment)return false;
+      var fn=typeof matcher==='function'?matcher:function(item){return item===assignment;};
+      if(state.assignments.some(fn))return false;
+      state.assignments.push(assignment);
+      return true;
+    },
+    removeAssignment:function(match){
+      var before=state.assignments.length;
+      if(typeof match==='function')state.assignments=state.assignments.filter(function(assignment){return !match(assignment);});
+      else state.assignments=state.assignments.filter(function(assignment){return assignment!==match;});
+      return before!==state.assignments.length;
+    },
+    removeAssignmentsWhere:function(predicate){
+      var fn=typeof predicate==='function'?predicate:function(){return false;};
+      state.assignments=state.assignments.filter(function(assignment){return !fn(assignment);});
+      return state.assignments.slice();
+    },
+    resetAssignments:function(){
+      state.assignments=[];
+      return state.assignments.slice();
+    },
     setGroupFilters:function(filters){
       state.groupFilters=unique(Array.isArray(filters)?filters.slice():[]);
       return state.groupFilters.slice();
@@ -98,12 +143,13 @@ function createCollectionState(initial){
       state.groupFilters=unique(Array.isArray(next&&next.groupFilters)?next.groupFilters.slice():[]);
       state.collections=unique(Array.isArray(next&&next.collections)?next.collections.slice():[]);
       state.collectionMeta=Object.assign({},(next&&next.collectionMeta)||{});
+      state.assignments=Array.isArray(next&&next.assignments)?next.assignments.slice():[];
       return this.snapshot();
     },
     snapshot:function(){
-      return {scope:state.scope,groupFilters:state.groupFilters.slice(),collections:state.collections.slice(),collectionMeta:Object.assign({},state.collectionMeta)};
+      return {scope:state.scope,groupFilters:state.groupFilters.slice(),collections:state.collections.slice(),collectionMeta:Object.assign({},state.collectionMeta),assignments:state.assignments.slice()};
     }
   };
 }
 
-var CollectionState=createCollectionState({scope:'mine',groupFilters:[],collections:[],collectionMeta:{}});
+var CollectionState=createCollectionState({scope:'mine',groupFilters:[],collections:[],collectionMeta:{},assignments:[]});
