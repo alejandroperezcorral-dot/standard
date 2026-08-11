@@ -11,6 +11,7 @@
 <script src="src/core/formatting.js"></script>
 <script src="src/core/escaping.js"></script>
 <script src="src/core/router.js"></script>
+<script src="src/core/permissions.js"></script>
 <script src="src/supabase/client.js"></script>
 <script src="src/supabase/repositories/storageRepository.js"></script>
 <style>
@@ -2147,15 +2148,15 @@ async function fbDrop(fid,e){
 // Ã¢â€â‚¬Ã¢â€â‚¬ Auth Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 var AUTH_USER=null,AUTH_PROFILE=null,_adminViewUid=null,_adminViewEmail='',_adminViewProfile=null,PUBLIC_VIEW=false,ADMIN_USERS_CACHE=[],COMPANY_CACHE=[],COMPANY_MEMBERS_CACHE={},COMPANY_INVITES_CACHE={},COMPANY_GROUPS_LOADED={},AUTH_GROUP_NAMES=[],ADMIN_COMPANY_ID='',ADMIN_COMPANY_TYPE_FILTER='',ADMIN_COMPANY_SEARCH='',ADMIN_USER_SEARCH='',TEAM_INVITE=null,TEAM_EDIT_UID='';
 var ADMIN_EMAIL='hello@athletestandards.com';
-function isAdmin(){return !!(AUTH_PROFILE&&(AUTH_PROFILE.role==='admin'||AUTH_PROFILE.access_role==='Platform Admin'))||(!!AUTH_USER&&AUTH_USER.email===ADMIN_EMAIL);}
+function isAdmin(){return hasPlatformAdminAccess(AUTH_PROFILE,AUTH_USER&&AUTH_USER.email,ADMIN_EMAIL);}
 function effectiveProfile(){return _adminViewProfile||AUTH_PROFILE||{};}
 function adminBypassActive(){return isAdmin()&&!_adminViewProfile;}
 function effectiveUserId(){return _adminViewUid||(AUTH_USER&&AUTH_USER.id)||'';}
 function effectiveUserEmail(){return _adminViewEmail||(AUTH_USER&&AUTH_USER.email)||'';}
-function isPlatformAdminProfile(u){return !!(u&&(u.role==='admin'||u.access_role==='Platform Admin'||u.email===ADMIN_EMAIL));}
-function isSupplierUser(){var p=effectiveProfile();return !!(p&&(p.role==='supplier'||p.company_type==='Supplier'));}
+function isPlatformAdminProfile(u){return isPlatformAdminProfileData(u,ADMIN_EMAIL);}
+function isSupplierUser(){return isSupplierProfileData(effectiveProfile());}
 function profileSupplierCompany(){var p=effectiveProfile();return (p&&(p.active_company_name||p.company_name||p.supplier_company||p.supplier||p.company))||'';}
-function companyAccessRole(){var p=effectiveProfile();if(_adminViewProfile)return (p&&(p.access_role||p.company_access_role))||'Company Member';return (p&&(p.access_role||p.company_access_role))||(isAdmin()?'Platform Admin':'Company Member');}
+function companyAccessRole(){return profileAccessRole(effectiveProfile(),isAdmin(),!!_adminViewProfile);}
 function activeCompanyName(){var p=effectiveProfile();if(isPlatformAdminProfile(p)&&!_adminViewProfile)return '';return (p&&(p.active_company_name||p.company_name||p.supplier_company||p.company))||'';}
 function activeCompanyType(){
   var p=effectiveProfile();
@@ -2256,7 +2257,7 @@ function supplierShareTargets(){
   return out.sort(function(a,b){return a.label.localeCompare(b.label);});
 }
 function canUseBuyingList(){
-  return !isSupplierUser()||isAdmin();
+  return canUseBuyingListForRole(isSupplierUser(),isAdmin());
 }
 var JOB_POSITIONS=['Owner','Founder','CEO','Managing Director','General Manager','Buying Director','Head of Buying','Buyer','Assistant Buyer','Merchandising Director','Merchandiser','Designer','Product Developer','Sourcing Manager','Production Manager','Quality Manager','Sales Director','Sales Manager','Account Manager','Commercial Manager','Finance','Operations','Logistics','Marketing','Other'];
 var COMPANY_DEPARTMENTS=['Management','Buying','Merchandising','Design','Product Development','Sourcing','Production','Quality','Sales','Finance','Operations','Logistics','Marketing','Other'];
@@ -4620,12 +4621,10 @@ function canDeleteCollectionMeta(meta){
   return isAdmin()||isOwnCollectionMeta(meta)||canManageCompanyCollections(meta.owner_company||meta.company||'',meta.owner_type||activeCompanyType());
 }
 function canManageCompanyCollections(company,type){
-  if(isAdmin())return true;
-  return !!(isCompanyAdmin&&isCompanyAdmin()&&normCompanyName(company)===normCompanyName(activeCompanyName())&&(!type||String(type)===activeCompanyType()));
+  return canManageCompanyCollectionsFor(isAdmin(),!!(isCompanyAdmin&&isCompanyAdmin()),company,activeCompanyName(),type,activeCompanyType());
 }
 function canDeleteStyle(r){
-  if(isAdmin())return true;
-  return !!(AUTH_USER&&r&&r.user_id&&r.user_id===AUTH_USER.id);
+  return canDeleteStyleForUser(isAdmin(),AUTH_USER&&AUTH_USER.id,r&&r.user_id);
 }
 function selectedRowsByIds(ids){
   ids=(ids||[]).map(function(x){return parseInt(x);});
@@ -5702,7 +5701,7 @@ function activeCompany(){
 }
 function isCompanyAdmin(){
   var role=companyAccessRole();
-  return isAdmin()||/platform admin|company admin/i.test(role)||!!(AUTH_PROFILE&&(AUTH_PROFILE.company_admin||AUTH_PROFILE.is_company_admin));
+  return isCompanyAdminRole(role,AUTH_PROFILE,isAdmin());
 }
 function companyStorageKey(kind,companyName){
   return 'stdtex:'+kind+':'+companyKey(companyName||activeCompanyName()||'company');
