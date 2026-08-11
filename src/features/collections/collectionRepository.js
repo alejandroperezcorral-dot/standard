@@ -36,6 +36,68 @@ function createCollectionRepository(supabase){
         .eq('owner_group',scope.owner_group||'')
         .eq('owner_type',scope.owner_type)
         .neq('collection_name',collectionName);
+    },
+    deleteScopedCollection:function(scope,name){
+      return supabase.from('showroom_collections_scoped')
+        .delete()
+        .eq('owner_company',scope.owner_company)
+        .eq('owner_group',scope.owner_group||'')
+        .eq('owner_type',scope.owner_type)
+        .eq('name',name);
+    },
+    updateStyleAssignmentsCollectionName:function(scope,oldName,newName){
+      return supabase.from('style_collection_assignments')
+        .update({collection_name:newName})
+        .eq('owner_company',scope.owner_company)
+        .eq('owner_group',scope.owner_group||'')
+        .eq('owner_type',scope.owner_type)
+        .eq('collection_name',oldName);
+    },
+    updateScopedCollectionExplicit:function(filters,row){
+      return supabase.from('showroom_collections_scoped')
+        .update(row)
+        .eq('owner_company',filters.owner_company)
+        .eq('owner_group',filters.owner_group||'')
+        .eq('owner_type',filters.owner_type)
+        .eq('name',filters.name);
+    },
+    updateAssignmentsForCollection:function(filters,row){
+      return supabase.from('style_collection_assignments')
+        .update(row)
+        .eq('owner_company',filters.owner_company)
+        .eq('owner_group',filters.owner_group||'')
+        .eq('owner_type',filters.owner_type)
+        .eq('collection_name',filters.collection_name);
+    },
+    deleteStyleAssignmentsForCollection:function(filters){
+      return supabase.from('style_collection_assignments')
+        .delete()
+        .eq('owner_company',filters.owner_company)
+        .eq('owner_group',filters.owner_group||'')
+        .eq('owner_type',filters.owner_type)
+        .eq('collection_name',filters.collection_name);
+    },
+    deleteScopedCollectionById:function(id){
+      return supabase.from('showroom_collections_scoped').delete().eq('id',id);
+    },
+    deleteScopedCollectionByFilters:function(filters){
+      return supabase.from('showroom_collections_scoped')
+        .delete()
+        .eq('owner_company',filters.owner_company)
+        .eq('owner_group',filters.owner_group||'')
+        .eq('owner_type',filters.owner_type)
+        .eq('name',filters.name);
+    },
+    selectScopedCollectionById:function(id){
+      return supabase.from('showroom_collections_scoped').select('id').eq('id',id);
+    },
+    selectScopedCollectionByFilters:function(filters){
+      return supabase.from('showroom_collections_scoped')
+        .select('id')
+        .eq('owner_company',filters.owner_company)
+        .eq('owner_group',filters.owner_group||'')
+        .eq('owner_type',filters.owner_type)
+        .eq('name',filters.name);
     }
   };
 }

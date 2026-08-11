@@ -16,5 +16,9 @@ var CollectionsDomain={
   rows:collectionRowsRead,
   createRepository:createCollectionRepository,
   persistScopedCollection:persistScopedCollectionWrite,
-  persistScopedAssignment:persistScopedAssignmentWrite
+  persistScopedAssignment:persistScopedAssignmentWrite,
+  renameScopedCollectionRemote:renameScopedCollectionRemoteWrite,
+  removeScopedCollectionRemote:removeScopedCollectionRemoteWrite,
+  updateCompanyCollectionExplicit:updateCompanyCollectionExplicitWrite,
+  deleteCompanyCollectionExplicit:deleteCompanyCollectionExplicitWrite
 };

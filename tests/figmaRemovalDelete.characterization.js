@@ -2,6 +2,8 @@ const fs = require('fs');
 const assert = require('assert');
 
 const html = fs.readFileSync('index.html', 'utf8');
+const collectionRepository = fs.readFileSync('src/features/collections/collectionRepository.js', 'utf8');
+const collectionService = fs.readFileSync('src/features/collections/collectionService.js', 'utf8');
 
 function functionBody(name) {
   const start = html.indexOf(`function ${name}(`) >= 0
@@ -29,8 +31,6 @@ assert(!/figma/i.test(deletedStyleCleanup), 'local style cleanup has no Figma de
 
 const collectionDelete = functionBody('deleteCompanyCollectionExplicit');
 [
-  'style_collection_assignments',
-  'showroom_collections_scoped',
   'SHOWROOM_COLLECTION_META',
   'SHOWROOM_COLLECTIONS',
   'SHOWROOM_COLLECTION_ASSIGNMENTS',
@@ -39,6 +39,21 @@ const collectionDelete = functionBody('deleteCompanyCollectionExplicit');
   'styleCollections'
 ].forEach(token => assert(collectionDelete.includes(token), `collection delete still includes ${token}`));
 assert(!/figma/i.test(collectionDelete), 'collection delete has no Figma dependency');
+
+[
+  'deleteStyleAssignmentsForCollection',
+  'deleteScopedCollectionById',
+  'deleteScopedCollectionByFilters',
+  'selectScopedCollectionById',
+  'selectScopedCollectionByFilters',
+  'Collection was not deleted from database'
+].forEach(token => assert(collectionService.includes(token), `collection delete service still includes ${token}`));
+[
+  'style_collection_assignments',
+  'showroom_collections_scoped'
+].forEach(token => assert(collectionRepository.includes(token), `collection repository still includes ${token}`));
+assert(!/figma/i.test(collectionService), 'collection service has no Figma dependency');
+assert(!/figma/i.test(collectionRepository), 'collection repository has no Figma dependency');
 
 [
   'collectionFigmaKey',
