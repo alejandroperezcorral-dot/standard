@@ -2,7 +2,8 @@ function createCollectionState(initial){
   var state={
     scope:(initial&&initial.scope)==='groups'?'groups':'mine',
     groupFilters:Array.isArray(initial&&initial.groupFilters)?initial.groupFilters.slice():[],
-    collections:Array.isArray(initial&&initial.collections)?initial.collections.slice():[]
+    collections:Array.isArray(initial&&initial.collections)?initial.collections.slice():[],
+    collectionMeta:Object.assign({},(initial&&initial.collectionMeta)||{})
   };
   function unique(values){
     return (values||[]).filter(function(v,i,a){return v&&a.indexOf(v)===i;});
@@ -40,6 +41,43 @@ function createCollectionState(initial){
       state.collections=state.collections.filter(function(ref){return ref&&!(fn(ref));});
       return state.collections.slice();
     },
+    getCollectionMeta:function(){
+      return Object.assign({},state.collectionMeta);
+    },
+    getCollectionMetaKeys:function(){
+      return Object.keys(state.collectionMeta||{});
+    },
+    getCollectionMetaEntry:function(ref){
+      var entry=state.collectionMeta&&state.collectionMeta[ref];
+      return entry?Object.assign({},entry):undefined;
+    },
+    setCollectionMeta:function(meta){
+      state.collectionMeta=Object.assign({},meta||{});
+      return this.getCollectionMeta();
+    },
+    setCollectionMetaEntry:function(ref,meta){
+      if(!ref)return undefined;
+      state.collectionMeta[ref]=Object.assign({},meta||{});
+      return this.getCollectionMetaEntry(ref);
+    },
+    mergeCollectionMetaEntry:function(ref,meta){
+      if(!ref)return undefined;
+      state.collectionMeta[ref]=Object.assign({},state.collectionMeta[ref]||{},meta||{});
+      return this.getCollectionMetaEntry(ref);
+    },
+    removeCollectionMetaEntry:function(ref){
+      if(!ref)return false;
+      if(!Object.prototype.hasOwnProperty.call(state.collectionMeta,ref))return false;
+      delete state.collectionMeta[ref];
+      return true;
+    },
+    removeCollectionMetaWhere:function(predicate){
+      var fn=typeof predicate==='function'?predicate:function(){return false;};
+      Object.keys(state.collectionMeta||{}).forEach(function(ref){
+        if(fn(ref,Object.assign({},state.collectionMeta[ref]||{})))delete state.collectionMeta[ref];
+      });
+      return this.getCollectionMeta();
+    },
     setGroupFilters:function(filters){
       state.groupFilters=unique(Array.isArray(filters)?filters.slice():[]);
       return state.groupFilters.slice();
@@ -59,12 +97,13 @@ function createCollectionState(initial){
       state.scope=(next&&next.scope)==='groups'?'groups':'mine';
       state.groupFilters=unique(Array.isArray(next&&next.groupFilters)?next.groupFilters.slice():[]);
       state.collections=unique(Array.isArray(next&&next.collections)?next.collections.slice():[]);
+      state.collectionMeta=Object.assign({},(next&&next.collectionMeta)||{});
       return this.snapshot();
     },
     snapshot:function(){
-      return {scope:state.scope,groupFilters:state.groupFilters.slice(),collections:state.collections.slice()};
+      return {scope:state.scope,groupFilters:state.groupFilters.slice(),collections:state.collections.slice(),collectionMeta:Object.assign({},state.collectionMeta)};
     }
   };
 }
 
-var CollectionState=createCollectionState({scope:'mine',groupFilters:[],collections:[]});
+var CollectionState=createCollectionState({scope:'mine',groupFilters:[],collections:[],collectionMeta:{}});

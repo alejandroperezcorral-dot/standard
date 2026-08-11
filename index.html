@@ -1838,7 +1838,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTION_META={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -3451,7 +3451,7 @@ function toast(msg,type){
 // Ã¢â€â‚¬Ã¢â€â‚¬ Persist Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function saveLocalSnapshot(){
   if(!isLoggedIn())return;
-  try{localStorage.setItem('bt4',JSON.stringify({R:ROWS,c:idc,F:FR,D:DUTIES,P:P,SE:SEASONS,SG:SG,SR:SR,SA:SA,SF:SF,SUPP:SUPP,DC:DC,CW:CW,COUNTRIES:COUNTRIES,SHOWROOM_COLLECTIONS:CollectionsDomain.state.getCollections(),SHOWROOM_COLLECTION_META:SHOWROOM_COLLECTION_META,SHOWROOM_NO_NAME_MIGRATED:SHOWROOM_NO_NAME_MIGRATED,sgc:sgc,src:src,sac:sac,sfc:sfc,sc:sc,cc:cc}));}catch(e){}
+  try{localStorage.setItem('bt4',JSON.stringify({R:ROWS,c:idc,F:FR,D:DUTIES,P:P,SE:SEASONS,SG:SG,SR:SR,SA:SA,SF:SF,SUPP:SUPP,DC:DC,CW:CW,COUNTRIES:COUNTRIES,SHOWROOM_COLLECTIONS:CollectionsDomain.state.getCollections(),SHOWROOM_COLLECTION_META:CollectionsDomain.state.getCollectionMeta(),SHOWROOM_NO_NAME_MIGRATED:SHOWROOM_NO_NAME_MIGRATED,sgc:sgc,src:src,sac:sac,sfc:sfc,sc:sc,cc:cc}));}catch(e){}
 }
 function save(){
   if(!isLoggedIn())return;
@@ -4131,8 +4131,8 @@ function collectionMetaVisibleForAssignment(x){
   var xCompany=normCompanyName(x.owner_company||''),xType=String(x.owner_type||scope.owner_type||'Brand');
   if(!xCompany||xCompany!==normCompanyName(scope.owner_company||''))return false;
   if(xType!==String(scope.owner_type||'Brand'))return false;
-  return Object.keys(SHOWROOM_COLLECTION_META||{}).some(function(k){
-    var m=SHOWROOM_COLLECTION_META[k]||{};
+  return CollectionsDomain.state.getCollectionMetaKeys().some(function(k){
+    var m=CollectionsDomain.state.getCollectionMetaEntry(k)||{};
     if(String(m.name||collectionDisplayName(k,m)||'')!==String(x.collection_name||''))return false;
     if(normCompanyName(m.owner_company||m.company||'')!==xCompany)return false;
     if(String(m.owner_type||'Brand')!==xType)return false;
@@ -4210,7 +4210,7 @@ async function loadScopedCollections(){
         var scopeKey=collectionScopeKeyFromParts(x.owner_type||scope.owner_type,x.owner_company||scope.owner_company,x.owner_group||'');
         var key=scopeKey+'::'+x.name;
         CollectionsDomain.state.addCollection(key);
-        SHOWROOM_COLLECTION_META[key]=Object.assign({},SHOWROOM_COLLECTION_META[key]||{},{scope:scopeKey,owner_company:x.owner_company||'',owner_group:x.owner_group||'',owner_type:x.owner_type||scope.owner_type,name:x.name,fsd:x.fsd||'',company:x.target_company||x.owner_company||'',group:x.target_group||x.owner_group||'',created_by:x.created_by||'',created_by_email:x.created_by_email||''});
+        CollectionsDomain.state.mergeCollectionMetaEntry(key,{scope:scopeKey,owner_company:x.owner_company||'',owner_group:x.owner_group||'',owner_type:x.owner_type||scope.owner_type,name:x.name,fsd:x.fsd||'',company:x.target_company||x.owner_company||'',group:x.target_group||x.owner_group||'',created_by:x.created_by||'',created_by_email:x.created_by_email||''});
       });
     }
     var aq=sb.from('style_collection_assignments').select('*');
@@ -4272,10 +4272,10 @@ function setStyleSharedBrands(r,brands){setStyleMeta(r,styleChatMessages(r),styl
 function collectionMeta(name){
   name=(name||'').trim();
   var key=collectionStoreKey(name);
-  if(name&&(SHOWROOM_COLLECTION_META[key]||SHOWROOM_COLLECTION_META[name]))return SHOWROOM_COLLECTION_META[key]||SHOWROOM_COLLECTION_META[name];
+  if(name&&(CollectionsDomain.state.getCollectionMetaEntry(key)||CollectionsDomain.state.getCollectionMetaEntry(name)))return CollectionsDomain.state.getCollectionMetaEntry(key)||CollectionsDomain.state.getCollectionMetaEntry(name);
   var found={};
-  Object.keys(SHOWROOM_COLLECTION_META||{}).some(function(k){
-    var m=SHOWROOM_COLLECTION_META[k]||{};
+  CollectionsDomain.state.getCollectionMetaKeys().some(function(k){
+    var m=CollectionsDomain.state.getCollectionMetaEntry(k)||{};
     if((m.name||collectionNameFromStoreKey(k))===name&&collectionKeyVisible(k)){found=m;return true;}
     return false;
   });
@@ -4285,7 +4285,7 @@ function collectionMetaByRef(ref){
   ref=(ref||'').trim();
   if(!ref)return {};
   if(ref.indexOf('::')>=0){
-    var direct=SHOWROOM_COLLECTION_META[ref];
+    var direct=CollectionsDomain.state.getCollectionMetaEntry(ref);
     if(direct)return Object.assign({name:collectionNameFromStoreKey(ref),_key:ref},direct);
   }
   return collectionMeta(ref)||{};
@@ -4349,8 +4349,8 @@ function companyCollectionsList(companyName,type){
   companyName=companyName||activeCompanyName();
   type=type||activeCompanyType()||'Brand';
   var seen={},out=[];
-  Object.keys(SHOWROOM_COLLECTION_META||{}).forEach(function(k){
-    var m=SHOWROOM_COLLECTION_META[k]||{},name=m.name||collectionNameFromStoreKey(k);
+  CollectionsDomain.state.getCollectionMetaKeys().forEach(function(k){
+    var m=CollectionsDomain.state.getCollectionMetaEntry(k)||{},name=m.name||collectionNameFromStoreKey(k);
     if(!name)return;
     if(normCompanyName(m.owner_company||m.company)!==normCompanyName(companyName))return;
     if(String(m.owner_type||type)!==String(type||m.owner_type||'Brand'))return;
@@ -4406,8 +4406,8 @@ async function updateCompanyCollectionExplicit(oldMeta,newName,fsd,newGroup){
     }
   });
   var oldStore=oldKey+'::'+oldName,newStore=newKey+'::'+newName;
-  delete SHOWROOM_COLLECTION_META[oldStore];
-  SHOWROOM_COLLECTION_META[newStore]=Object.assign({},oldMeta,{scope:newKey,name:newName,fsd:fsd||'',owner_company:company,owner_group:result.newGroup||'',owner_type:type,company:company,group:result.newGroup||''});
+  CollectionsDomain.state.removeCollectionMetaEntry(oldStore);
+  CollectionsDomain.state.setCollectionMetaEntry(newStore,Object.assign({},oldMeta,{scope:newKey,name:newName,fsd:fsd||'',owner_company:company,owner_group:result.newGroup||'',owner_type:type,company:company,group:result.newGroup||''}));
   CollectionsDomain.state.removeCollections(function(x){return x===oldStore||x===oldName;});
   CollectionsDomain.state.addCollection(newStore);
 }
@@ -4430,11 +4430,10 @@ async function deleteCompanyCollectionExplicit(meta){
       setStyleMeta(r,styleChatMessages(r),styleFiles(r),styleCollections(r),styleLifecycleMeta(r),styleSharedBrands(r),map);
     }
   });
-  delete SHOWROOM_COLLECTION_META[storeKey];
-  delete SHOWROOM_COLLECTION_META[name];
-  Object.keys(SHOWROOM_COLLECTION_META||{}).forEach(function(k){
-    var m=SHOWROOM_COLLECTION_META[k]||{};
-    if((m.name||k)===name&&normCompanyName(m.owner_company||m.company||company)===normCompanyName(company)&&String(m.owner_type||type)===String(type)&&(m.owner_group||m.group||'')===group)delete SHOWROOM_COLLECTION_META[k];
+  CollectionsDomain.state.removeCollectionMetaEntry(storeKey);
+  CollectionsDomain.state.removeCollectionMetaEntry(name);
+  CollectionsDomain.state.removeCollectionMetaWhere(function(k,m){
+    return (m.name||k)===name&&normCompanyName(m.owner_company||m.company||company)===normCompanyName(company)&&String(m.owner_type||type)===String(type)&&(m.owner_group||m.group||'')===group;
   });
   CollectionsDomain.state.removeCollections(function(x){return x===storeKey||x===name;});
   SHOWROOM_COLLECTION_ASSIGNMENTS=(SHOWROOM_COLLECTION_ASSIGNMENTS||[]).filter(function(x){
@@ -4460,14 +4459,15 @@ async function deleteCompanyCollectionFromManager(i){
 }
 function setCollectionMeta(name,meta){
   name=(name||'').trim();if(!name)return;
-  if(!SHOWROOM_COLLECTION_META)SHOWROOM_COLLECTION_META={};
   var ownerGroup=meta&&Object.prototype.hasOwnProperty.call(meta,'owner_group')?meta.owner_group:((meta&&meta.group)||'');
   var ownerCompany=(meta&&meta.owner_company)||(meta&&meta.company)||collectionScopeInfo(ownerGroup).owner_company;
   var ownerType=(meta&&meta.owner_type)||collectionScopeInfo(ownerGroup).owner_type;
   var scopeKey=collectionScopeKeyFromParts(ownerType,ownerCompany,ownerGroup);
   var key=scopeKey+'::'+name;
-  SHOWROOM_COLLECTION_META[key]=Object.assign({},SHOWROOM_COLLECTION_META[key]||SHOWROOM_COLLECTION_META[name]||{},meta||{}, {scope:scopeKey,owner_company:ownerCompany||'',owner_group:ownerGroup||'',owner_type:ownerType,name:name,created_by:(meta&&meta.created_by)||(SHOWROOM_COLLECTION_META[key]&&SHOWROOM_COLLECTION_META[key].created_by)||(AUTH_USER&&AUTH_USER.id)||'',created_by_email:(meta&&meta.created_by_email)||(SHOWROOM_COLLECTION_META[key]&&SHOWROOM_COLLECTION_META[key].created_by_email)||(AUTH_USER&&AUTH_USER.email)||''});
-  persistScopedCollection(name,SHOWROOM_COLLECTION_META[key]).catch(function(e){console.warn('Collection metadata save failed',e);});
+  var existing=CollectionsDomain.state.getCollectionMetaEntry(key)||CollectionsDomain.state.getCollectionMetaEntry(name)||{};
+  var next=Object.assign({},existing,meta||{}, {scope:scopeKey,owner_company:ownerCompany||'',owner_group:ownerGroup||'',owner_type:ownerType,name:name,created_by:(meta&&meta.created_by)||existing.created_by||(AUTH_USER&&AUTH_USER.id)||'',created_by_email:(meta&&meta.created_by_email)||existing.created_by_email||(AUTH_USER&&AUTH_USER.email)||''});
+  CollectionsDomain.state.setCollectionMetaEntry(key,next);
+  persistScopedCollection(name,next).catch(function(e){console.warn('Collection metadata save failed',e);});
 }
 function migrateExistingNoCollectionRows(){
   if(SHOWROOM_NO_NAME_MIGRATED)return false;
@@ -4503,7 +4503,7 @@ function rememberShowroomCollectionWithMeta(name,meta){
   var added=!CollectionsDomain.state.hasCollection(key);
   if(added)CollectionsDomain.state.addCollection(key);
   CollectionsDomain.state.normalizeCollections();
-  SHOWROOM_COLLECTION_META[key]=Object.assign({},SHOWROOM_COLLECTION_META[key]||{},meta||{},{scope:scopeKey,owner_company:company,owner_type:type,owner_group:group||'',name:name});
+  CollectionsDomain.state.mergeCollectionMetaEntry(key,Object.assign({},meta||{},{scope:scopeKey,owner_company:company,owner_type:type,owner_group:group||'',name:name}));
   return added;
 }
 async function addStyleToCollection(r,name){
@@ -5152,8 +5152,8 @@ function brandCompanyNames(){
       if(c&&c.type!=='Supplier'&&c.name)addBrand(c.name);
     });
   }catch(e){}
-  Object.keys(SHOWROOM_COLLECTION_META||{}).forEach(function(n){
-    var m=SHOWROOM_COLLECTION_META[n]||{};
+  CollectionsDomain.state.getCollectionMetaKeys().forEach(function(n){
+    var m=CollectionsDomain.state.getCollectionMetaEntry(n)||{};
     if(m.company)addBrand(m.company);
   });
   (ADMIN_USERS_CACHE||[]).forEach(function(u){
@@ -6794,8 +6794,8 @@ async function submitEditCollection(name,fsd,company,group){
       cols=cols.map(function(c){if(c===oldName){changed=true;return name;}return c;});
       if(changed)setCurrentStyleCollections(r,cols);
     });
-    if(SHOWROOM_COLLECTION_META&&SHOWROOM_COLLECTION_META[oldKey])delete SHOWROOM_COLLECTION_META[oldKey];
-    if(SHOWROOM_COLLECTION_META&&SHOWROOM_COLLECTION_META[old])delete SHOWROOM_COLLECTION_META[old];
+    CollectionsDomain.state.removeCollectionMetaEntry(oldKey);
+    CollectionsDomain.state.removeCollectionMetaEntry(old);
     SHOWROOM_FOLDER=collectionScopeKeyFromParts(ownerType,ownerCompany,group||'')+'::'+name;
     try{await renameScopedCollectionRemote(oldName,name,newMeta,oldMeta);}
     catch(e){toast('Error updating collection: '+(e.message||JSON.stringify(e)),'err');return;}

@@ -31,7 +31,8 @@ assert(!/figma/i.test(deletedStyleCleanup), 'local style cleanup has no Figma de
 
 const collectionDelete = functionBody('deleteCompanyCollectionExplicit');
 [
-  'SHOWROOM_COLLECTION_META',
+  'CollectionsDomain.state.removeCollectionMetaEntry',
+  'CollectionsDomain.state.removeCollectionMetaWhere',
   'CollectionsDomain.state.removeCollections',
   'SHOWROOM_COLLECTION_ASSIGNMENTS',
   'setStyleMeta',
