@@ -26,6 +26,7 @@
 <script src="src/features/collections/collectionRepository.js"></script>
 <script src="src/features/collections/collectionService.js"></script>
 <script src="src/features/collections/collectionRenderer.js"></script>
+<script src="src/features/collections/collectionState.js"></script>
 <script src="src/features/collections/index.js"></script>
 <script src="src/features/styles/styleModel.js"></script>
 <script src="src/features/styles/styleRepository.js"></script>
@@ -1837,7 +1838,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTIONS=[],SHOWROOM_COLLECTION_META={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTIONS_SCOPE='mine',COLLECTION_GROUP_FILTERS=[],COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTIONS=[],SHOWROOM_COLLECTION_META={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -5184,16 +5185,17 @@ function collectionAvailableGroups(){
 }
 function collectionPassesScope(name){
   var meta=collectionMetaByRef(name)||{};
-  if(COLLECTIONS_SCOPE!=='groups')return collectionCreatedByCurrentUser(meta);
+  if(CollectionsDomain.state.getScope()!=='groups')return collectionCreatedByCurrentUser(meta);
   if(activeCompanyName()&&!collectionOwnedByActiveCompany(meta))return false;
   if(adminBypassActive())return true;
   if(!collectionOwnedByActiveCompany(meta))return false;
-  if(COLLECTIONS_SCOPE==='groups'){
+  if(CollectionsDomain.state.getScope()==='groups'){
     var group=(meta.owner_group||meta.group||'').trim();
     if(!group)return false;
     var memberGroups=userCompanyGroups();
     if(!memberGroups.some(function(g){return normCompanyName(g)===normCompanyName(group);}))return false;
-    if(COLLECTION_GROUP_FILTERS.length&&!COLLECTION_GROUP_FILTERS.some(function(g){return normCompanyName(g)===normCompanyName(group);}))return false;
+    var groupFilters=CollectionsDomain.state.getGroupFilters();
+    if(groupFilters.length&&!groupFilters.some(function(g){return normCompanyName(g)===normCompanyName(group);}))return false;
     return true;
   }
   return false;
@@ -5214,18 +5216,16 @@ function collectionPassesPeriod(name){
 }
 function collectionsScopeTabsHtml(){
   var groups=collectionAvailableGroups();
-  return CollectionsDomain.renderer.scopeTabs({scope:COLLECTIONS_SCOPE,groups:groups,groupFilters:COLLECTION_GROUP_FILTERS,helpers:{escHtml:escHtml,normalizeName:normCompanyName}});
+  return CollectionsDomain.renderer.scopeTabs({scope:CollectionsDomain.state.getScope(),groups:groups,groupFilters:CollectionsDomain.state.getGroupFilters(),helpers:{escHtml:escHtml,normalizeName:normCompanyName}});
 }
 function setCollectionsScope(scope){
-  COLLECTIONS_SCOPE=scope==='groups'?'groups':'mine';
-  COLLECTION_GROUP_FILTERS=[];
-  clearShowroomSelectionIfContextChanges('collections:'+COLLECTIONS_SCOPE);
+  var nextScope=CollectionsDomain.state.setScope(scope);
+  CollectionsDomain.state.resetGroupFilters();
+  clearShowroomSelectionIfContextChanges('collections:'+nextScope);
   renderCollectionsBoard();
 }
 function toggleCollectionGroupFilter(group,on){
-  group=(group||'').trim();if(!group)return;
-  COLLECTION_GROUP_FILTERS=COLLECTION_GROUP_FILTERS.filter(function(g){return normCompanyName(g)!==normCompanyName(group);});
-  if(on)COLLECTION_GROUP_FILTERS.push(group);
+  CollectionsDomain.state.toggleGroupFilter(group,on,normCompanyName);
   renderCollectionsBoard();
 }
 function filteredCollectionRows(name){
@@ -6419,7 +6419,7 @@ function renderCollectionsBoard(){
   }
   h+=collectionsScopeTabsHtml();
   h+=collectionsFilterHtml();
-  h+='<p class="collections-intro">'+(COLLECTIONS_SCOPE==='groups'?'Collections shared with the groups you belong to.':'Only products explicitly assigned to your collections.')+'</p>';
+  h+='<p class="collections-intro">'+(CollectionsDomain.state.getScope()==='groups'?'Collections shared with the groups you belong to.':'Only products explicitly assigned to your collections.')+'</p>';
   h+='<div class="collections-board-grid">';
   visibleNames.forEach(function(n){
     var meta=collectionMetaByRef(n),display=collectionDisplayName(n,meta),ownMatch=q&&[display,meta.fsd,meta.owner_company||meta.company,meta.owner_group||meta.group,collectionCreatorEmail(meta)].join(' ').toLowerCase().indexOf(q)>=0;
@@ -6771,7 +6771,7 @@ async function submitCreateCollection(){
   }
   SHOWROOM_COLLECTIONS_VIEW=true;
   SHOWROOM_FOLDER=collectionRef;
-  COLLECTIONS_SCOPE=group?'groups':'mine';
+  CollectionsDomain.state.setScope(group?'groups':'mine');
   closeCreateCollectionModal();
   save();
   renderCollectionsDrawer();

@@ -6,6 +6,7 @@ vm.runInThisContext(fs.readFileSync('src/features/collections/collectionModel.js
 vm.runInThisContext(fs.readFileSync('src/features/collections/collectionRepository.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/collections/collectionService.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/collections/collectionRenderer.js', 'utf8'));
+vm.runInThisContext(fs.readFileSync('src/features/collections/collectionState.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/collections/index.js', 'utf8'));
 
 function makeRepo(options) {
