@@ -14,6 +14,8 @@
 <script src="src/core/permissions.js"></script>
 <script src="src/supabase/client.js"></script>
 <script src="src/supabase/repositories/storageRepository.js"></script>
+<script src="src/features/identity/identityModel.js"></script>
+<script src="src/features/identity/index.js"></script>
 <script src="src/features/styles/styleModel.js"></script>
 <script src="src/features/styles/styleRepository.js"></script>
 <script src="src/features/styles/styleService.js"></script>
@@ -2143,36 +2145,21 @@ async function fbDrop(fid,e){
 var AUTH_USER=null,AUTH_PROFILE=null,_adminViewUid=null,_adminViewEmail='',_adminViewProfile=null,PUBLIC_VIEW=false,ADMIN_USERS_CACHE=[],COMPANY_CACHE=[],COMPANY_MEMBERS_CACHE={},COMPANY_INVITES_CACHE={},COMPANY_GROUPS_LOADED={},AUTH_GROUP_NAMES=[],ADMIN_COMPANY_ID='',ADMIN_COMPANY_TYPE_FILTER='',ADMIN_COMPANY_SEARCH='',ADMIN_USER_SEARCH='',TEAM_INVITE=null,TEAM_EDIT_UID='';
 var ADMIN_EMAIL='hello@athletestandards.com';
 function isAdmin(){return hasPlatformAdminAccess(AUTH_PROFILE,AUTH_USER&&AUTH_USER.email,ADMIN_EMAIL);}
-function effectiveProfile(){return _adminViewProfile||AUTH_PROFILE||{};}
+function effectiveProfile(){return IdentityDomain.effectiveProfile(AUTH_PROFILE,_adminViewProfile);}
 function adminBypassActive(){return isAdmin()&&!_adminViewProfile;}
-function effectiveUserId(){return _adminViewUid||(AUTH_USER&&AUTH_USER.id)||'';}
-function effectiveUserEmail(){return _adminViewEmail||(AUTH_USER&&AUTH_USER.email)||'';}
-function isPlatformAdminProfile(u){return isPlatformAdminProfileData(u,ADMIN_EMAIL);}
-function isSupplierUser(){return isSupplierProfileData(effectiveProfile());}
-function profileSupplierCompany(){var p=effectiveProfile();return (p&&(p.active_company_name||p.company_name||p.supplier_company||p.supplier||p.company))||'';}
-function companyAccessRole(){return profileAccessRole(effectiveProfile(),isAdmin(),!!_adminViewProfile);}
-function activeCompanyName(){var p=effectiveProfile();if(isPlatformAdminProfile(p)&&!_adminViewProfile)return '';return (p&&(p.active_company_name||p.company_name||p.supplier_company||p.company))||'';}
+function effectiveUserId(){return IdentityDomain.effectiveUserId(AUTH_USER,_adminViewUid);}
+function effectiveUserEmail(){return IdentityDomain.effectiveUserEmail(AUTH_USER,_adminViewEmail);}
+function isPlatformAdminProfile(u){return IdentityDomain.isPlatformAdminProfile(u,ADMIN_EMAIL);}
+function isSupplierUser(){return IdentityDomain.isSupplierProfile(effectiveProfile());}
+function profileSupplierCompany(){return IdentityDomain.supplierCompany(effectiveProfile());}
+function companyAccessRole(){return IdentityDomain.companyAccessRole(effectiveProfile(),isAdmin(),!!_adminViewProfile);}
+function activeCompanyName(){return IdentityDomain.activeCompanyName(effectiveProfile(),!!_adminViewProfile,ADMIN_EMAIL);}
 function activeCompanyType(){
-  var p=effectiveProfile();
-  if(isPlatformAdminProfile(p)&&!_adminViewProfile)return '';
-  if(p&&p.company_type)return p.company_type;
-  if(isAdmin())return 'Brand';
-  return isSupplierUser()?'Supplier':'Brand';
+  return IdentityDomain.activeCompanyType(effectiveProfile(),isAdmin(),isSupplierUser(),!!_adminViewProfile,ADMIN_EMAIL);
 }
 function normCompanyName(v){return String(v||'').trim().toLowerCase();}
-function profileCompanyGroup(){
-  var p=effectiveProfile();
-  return (p&&(p.company_group||p.group||p.company_subgroup||p.department))||'';
-}
-function userCompanyGroups(){
-  var vals=[];
-  function add(v){String(v||'').split(',').forEach(function(x){x=x.trim();if(x&&!vals.some(function(y){return normCompanyName(y)===normCompanyName(x);}))vals.push(x);});}
-  add(profileCompanyGroup());
-  (AUTH_GROUP_NAMES||[]).forEach(add);
-  var p=effectiveProfile();
-  if(p){add(p.company_groups);add(p.groups);}
-  return vals;
-}
+function profileCompanyGroup(){return IdentityDomain.profileCompanyGroup(effectiveProfile());}
+function userCompanyGroups(){return IdentityDomain.groupList(effectiveProfile(),AUTH_GROUP_NAMES);}
 function rowCompanyGroup(r){
   var direct=(r&&(r.company_group||r.group||r.cust_profile))||'';
   if(direct)return direct;
