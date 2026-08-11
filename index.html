@@ -23,6 +23,7 @@
 <script src="src/features/groups/groupRepository.js"></script>
 <script src="src/features/groups/index.js"></script>
 <script src="src/features/collections/collectionModel.js"></script>
+<script src="src/features/collections/collectionRepository.js"></script>
 <script src="src/features/collections/collectionService.js"></script>
 <script src="src/features/collections/index.js"></script>
 <script src="src/features/styles/styleModel.js"></script>
@@ -4238,45 +4239,10 @@ function setCurrentStyleCollections(r,collections,group){
   setStyleMeta(r,styleChatMessages(r),styleFiles(r),styleCollections(r),styleLifecycleMeta(r),styleSharedBrands(r),map);
 }
 async function persistScopedCollection(name,meta){
-  if(!isLoggedIn())return;
-  var scope=collectionScopeInfo(meta&&Object.prototype.hasOwnProperty.call(meta,'owner_group')?meta.owner_group:undefined);
-  if(meta&&meta.owner_company)scope.owner_company=meta.owner_company;
-  if(meta&&meta.owner_type)scope.owner_type=meta.owner_type;
-  if(meta&&Object.prototype.hasOwnProperty.call(meta,'owner_group'))scope.owner_group=meta.owner_group||'';
-  if(!scope.owner_company||!name)return;
-  var row={owner_company:scope.owner_company,owner_group:scope.owner_group||'',owner_type:scope.owner_type,name:name,fsd:(meta&&meta.fsd)||null,target_company:scope.owner_company,target_group:(meta&&meta.group)||scope.owner_group||'',created_by:AUTH_USER?AUTH_USER.id:null,created_by_email:(meta&&meta.created_by_email)||(AUTH_USER&&AUTH_USER.email)||'',updated_at:new Date().toISOString()};
-  var existing=await sb.from('showroom_collections_scoped').select('id,created_by').eq('owner_company',scope.owner_company).eq('owner_group',scope.owner_group||'').eq('owner_type',scope.owner_type).eq('name',name).maybeSingle();
-  if(existing.error)throw existing.error;
-  if(existing.data&&existing.data.id){
-    if((AUTH_USER&&existing.data.created_by===AUTH_USER.id)||isCompanyAdmin()){
-      var u=await sb.from('showroom_collections_scoped').update(row).eq('id',existing.data.id);
-      if(u.error&&missingColumnError(u.error)){var fallback=Object.assign({},row);delete fallback.created_by_email;u=await sb.from('showroom_collections_scoped').update(fallback).eq('id',existing.data.id);}
-      if(u.error)throw u.error;
-    }
-    return;
-  }
-  var r=await sb.from('showroom_collections_scoped').insert(row);
-  if(r.error&&missingColumnError(r.error)){var fallbackInsert=Object.assign({},row);delete fallbackInsert.created_by_email;r=await sb.from('showroom_collections_scoped').insert(fallbackInsert);}
-  if(r.error)throw r.error;
+  return CollectionsDomain.persistScopedCollection(name,meta,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER,isCompanyAdmin:isCompanyAdmin,missingColumnError:missingColumnError});
 }
 async function persistScopedAssignment(r,name,action){
-  if(!isLoggedIn()||!r||!name)return;
-  var meta=collectionMetaByRef(name)||{},collectionName=collectionDisplayName(name,meta);
-  var scope=collectionScopeInfo(Object.prototype.hasOwnProperty.call(meta,'owner_group')?meta.owner_group:undefined);
-  if(meta.owner_company)scope.owner_company=meta.owner_company;
-  if(meta.owner_type)scope.owner_type=meta.owner_type;
-  if(Object.prototype.hasOwnProperty.call(meta,'owner_group'))scope.owner_group=meta.owner_group||'';
-  if(!scope.owner_company)return;
-  if(action==='remove'){
-    var d=await sb.from('style_collection_assignments').delete().eq('row_id',r.id).eq('owner_company',scope.owner_company).eq('owner_group',scope.owner_group||'').eq('owner_type',scope.owner_type).eq('collection_name',collectionName);
-    if(d.error)throw d.error;
-    return;
-  }
-  var row={row_id:r.id,owner_company:scope.owner_company,owner_group:scope.owner_group||'',owner_type:scope.owner_type,collection_name:collectionName,created_by:AUTH_USER?AUTH_USER.id:null};
-  var u=await sb.from('style_collection_assignments').upsert(row,{onConflict:'row_id,owner_company,owner_group,owner_type,collection_name'});
-  if(u.error)throw u.error;
-  var cleanup=await sb.from('style_collection_assignments').delete().eq('row_id',r.id).eq('owner_company',scope.owner_company).eq('owner_group',scope.owner_group||'').eq('owner_type',scope.owner_type).neq('collection_name',collectionName);
-  if(cleanup.error)throw cleanup.error;
+  return CollectionsDomain.persistScopedAssignment(r,name,action,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionMetaByRef:collectionMetaByRef,collectionDisplayName:collectionDisplayName,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER});
 }
 async function renameScopedCollectionRemote(oldName,newName,meta,oldMeta){
   if(!isLoggedIn()||!oldName||!newName)return;

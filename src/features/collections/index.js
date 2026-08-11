@@ -13,5 +13,8 @@ var CollectionsDomain={
   summary:collectionSummaryModel,
   sortRefs:sortCollectionRefsModel,
   rowsForMeta:collectionRowsForMetaRead,
-  rows:collectionRowsRead
+  rows:collectionRowsRead,
+  createRepository:createCollectionRepository,
+  persistScopedCollection:persistScopedCollectionWrite,
+  persistScopedAssignment:persistScopedAssignmentWrite
 };
