@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="src/core/formatting.js"></script>
 <script src="src/core/escaping.js"></script>
+<script src="src/core/router.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -8254,15 +8255,7 @@ function activePageName(){
 }
 function appPathForState(name){
   name=name||activePageName();
-  if(name==='showroom')return SHOWROOM_COLLECTIONS_VIEW?'/collections':'/explore';
-  if(name==='company')return '/mycompany';
-  if(name==='neg')return '/negotiation';
-  if(name==='closed')return '/closed';
-  if(name==='suppliers')return '/suppliers';
-  if(name==='chat')return '/chat';
-  if(name==='canvas')return CANVAS_CURRENT_ID?'/canvas/'+encodeURIComponent(CANVAS_CURRENT_ID):'/canvas';
-  if(name==='admin')return '/admin';
-  return '';
+  return routePathForPage(name,{collectionsView:SHOWROOM_COLLECTIONS_VIEW,canvasId:CANVAS_CURRENT_ID});
 }
 function syncAppRoute(name,replace){
   if(PUBLIC_VIEW||_routeApplying||!window.history||!window.location)return;
@@ -8272,8 +8265,7 @@ function syncAppRoute(name,replace){
 }
 function applyRouteFromLocation(){
   if(!isLoggedIn())return false;
-  var p=(window.location.pathname||'/').toLowerCase().replace(/\/+$/,'');
-  if(!p||p==='/index.html')p='/explore';
+  var p=normalizeRoutePath(window.location.pathname||'/');
   _routeApplying=true;
   try{
     if(p==='/collections'){openManageCollections();return true;}
