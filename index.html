@@ -870,14 +870,6 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .collections-page-head button{border:none;border-radius:999px;background:#111;color:#fff;height:36px;padding:0 14px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
   .collections-page-head button:first-child{background:#fff;color:#111;padding-left:0}
   .collection-head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;max-width:560px}
-  .collection-head-actions .figma-sync-main{background:#4f46e5;color:#fff}
-  .collection-figma-promise{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:12px;font-weight:900;color:#111}
-  .figma-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;background:#f3f4f6;color:#4b5563;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
-  .figma-synced{background:#dcfce7;color:#166534}
-  .figma-syncing{background:#e0e7ff;color:#3730a3}
-  .figma-changes-available{background:#fef3c7;color:#92400e}
-  .figma-conflicts{background:#fee2e2;color:#b91c1c}
-  .figma-connect-help{font-size:12px;font-weight:800;color:#6b7280;line-height:1.4;margin:0 0 12px}
   .collections-intro{font-size:12px;font-weight:800;color:#6b7280;margin:-8px 0 18px}
   .collections-tabs{display:flex;align-items:center;gap:28px;margin:0 0 20px;overflow-x:auto;white-space:nowrap}
   .collections-tabs button{border:none;background:#fff;color:#050505;font-size:20px;font-weight:800;padding:7px 0 9px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
@@ -1844,7 +1836,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTIONS=[],SHOWROOM_COLLECTION_META={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTIONS_SCOPE='mine',COLLECTION_GROUP_FILTERS=[],COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',FIGMA_COLLECTION_CONNECTIONS={},FIGMA_STYLE_LINKS={},CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_FOLDER='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_COLLECTIONS=[],SHOWROOM_COLLECTION_META={},SHOWROOM_COLLECTION_ASSIGNMENTS=[],SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTIONS_SCOPE='mine',COLLECTION_GROUP_FILTERS=[],COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -2807,48 +2799,12 @@ CREATE TABLE IF NOT EXISTS public.style_collection_assignments (
   UNIQUE(row_id, owner_company, owner_group, owner_type, collection_name)
 );
 DELETE FROM public.style_collection_assignments a WHERE NOT EXISTS (SELECT 1 FROM public.negotiation_rows r WHERE r.id = a.row_id);
-CREATE TABLE IF NOT EXISTS public.figma_collection_connections (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  stdtex_collection_key text NOT NULL UNIQUE,
-  collection_scope text DEFAULT \'\',
-  collection_name text NOT NULL,
-  figma_file_id text NOT NULL,
-  figma_node_id text NOT NULL,
-  figma_node_type text DEFAULT \'frame\',
-  status text DEFAULT \'Disconnected\',
-  last_snapshot jsonb DEFAULT \'{}\'::jsonb,
-  last_sync_summary jsonb DEFAULT \'{}\'::jsonb,
-  last_synced_at timestamptz,
-  created_by uuid,
-  created_by_email text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS public.figma_style_links (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  collection_connection_id uuid NOT NULL REFERENCES public.figma_collection_connections(id) ON DELETE CASCADE,
-  row_id bigint NOT NULL REFERENCES public.negotiation_rows(id) ON DELETE CASCADE,
-  figma_instance_id text NOT NULL,
-  last_snapshot jsonb DEFAULT \'{}\'::jsonb,
-  last_figma_snapshot jsonb DEFAULT \'{}\'::jsonb,
-  conflict_snapshot jsonb DEFAULT \'{}\'::jsonb,
-  status text DEFAULT \'Synced\',
-  updated_at timestamptz DEFAULT now(),
-  UNIQUE(collection_connection_id,row_id),
-  UNIQUE(collection_connection_id,figma_instance_id)
-);
 ALTER TABLE public.showroom_collections_scoped ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.style_collection_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.figma_collection_connections ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.figma_style_links ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.showroom_collections_scoped FROM anon;
 REVOKE ALL ON TABLE public.style_collection_assignments FROM anon;
-REVOKE ALL ON TABLE public.figma_collection_connections FROM anon;
-REVOKE ALL ON TABLE public.figma_style_links FROM anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.showroom_collections_scoped TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.style_collection_assignments TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.figma_collection_connections TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.figma_style_links TO authenticated;
 DROP POLICY IF EXISTS "collections_company_private_or_group" ON public.showroom_collections_scoped;
 DROP POLICY IF EXISTS "assignments_company_private_or_group" ON public.style_collection_assignments;
 DROP POLICY IF EXISTS "showroom_collections_scoped_access" ON public.showroom_collections_scoped;
@@ -2873,8 +2829,6 @@ DROP POLICY IF EXISTS "assignments_select_scope" ON public.style_collection_assi
 DROP POLICY IF EXISTS "assignments_insert_scope" ON public.style_collection_assignments;
 DROP POLICY IF EXISTS "assignments_update_scope" ON public.style_collection_assignments;
 DROP POLICY IF EXISTS "assignments_delete_scope" ON public.style_collection_assignments;
-DROP POLICY IF EXISTS "figma_connections_all" ON public.figma_collection_connections;
-DROP POLICY IF EXISTS "figma_links_all" ON public.figma_style_links;
 CREATE POLICY "collections_select_scoped" ON public.showroom_collections_scoped FOR SELECT TO authenticated USING (
   (auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR created_by=auth.uid() OR EXISTS (
   SELECT 1 FROM public.company_memberships cm
@@ -2920,11 +2874,6 @@ CREATE POLICY "assignments_insert_scoped" ON public.style_collection_assignments
 );
 CREATE POLICY "assignments_update_scoped" ON public.style_collection_assignments FOR UPDATE TO authenticated USING ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR created_by=auth.uid() OR EXISTS (SELECT 1 FROM public.company_memberships cm JOIN public.companies c ON c.id=cm.company_id WHERE cm.user_id=auth.uid() AND cm.membership_status=\'Active\' AND cm.access_role IN (\'Company Admin\',\'Platform Admin\') AND lower(c.name)=lower(coalesce(public.style_collection_assignments.owner_company,\'\')) AND c.type=coalesce(public.style_collection_assignments.owner_type,\'Brand\'))) WITH CHECK ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR created_by=auth.uid() OR EXISTS (SELECT 1 FROM public.company_memberships cm JOIN public.companies c ON c.id=cm.company_id WHERE cm.user_id=auth.uid() AND cm.membership_status=\'Active\' AND cm.access_role IN (\'Company Admin\',\'Platform Admin\') AND lower(c.name)=lower(coalesce(public.style_collection_assignments.owner_company,\'\')) AND c.type=coalesce(public.style_collection_assignments.owner_type,\'Brand\')));
 CREATE POLICY "assignments_delete_scoped" ON public.style_collection_assignments FOR DELETE TO authenticated USING ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR created_by=auth.uid() OR EXISTS (SELECT 1 FROM public.company_memberships cm JOIN public.companies c ON c.id=cm.company_id WHERE cm.user_id=auth.uid() AND cm.membership_status=\'Active\' AND cm.access_role IN (\'Company Admin\',\'Platform Admin\') AND lower(c.name)=lower(coalesce(public.style_collection_assignments.owner_company,\'\')) AND c.type=coalesce(public.style_collection_assignments.owner_type,\'Brand\')));
-CREATE POLICY "figma_connections_all" ON public.figma_collection_connections FOR ALL TO authenticated USING ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR created_by=auth.uid()) WITH CHECK ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR created_by=auth.uid());
-CREATE POLICY "figma_links_all" ON public.figma_style_links FOR ALL TO authenticated USING ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR EXISTS (SELECT 1 FROM public.figma_collection_connections c WHERE c.id=public.figma_style_links.collection_connection_id AND c.created_by=auth.uid())) WITH CHECK ((auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\' OR EXISTS (SELECT 1 FROM public.figma_collection_connections c WHERE c.id=public.figma_style_links.collection_connection_id AND c.created_by=auth.uid()));
-CREATE INDEX IF NOT EXISTS figma_collection_connections_collection_key_idx ON public.figma_collection_connections(stdtex_collection_key);
-CREATE INDEX IF NOT EXISTS figma_style_links_connection_idx ON public.figma_style_links(collection_connection_id);
-CREATE INDEX IF NOT EXISTS figma_style_links_row_idx ON public.figma_style_links(row_id);
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = \'style_collection_assignments_row_id_fkey\') THEN
@@ -3592,7 +3541,6 @@ async function sbDeleteStyleDependencies(ids){
   ids=(ids||[]).map(function(x){return parseInt(x);}).filter(Boolean);
   if(!ids.length)return true;
   try{
-    try{await sb.from('figma_style_links').delete().in('row_id',ids);}catch(_figDel){}
     var a=await sb.from('style_collection_assignments').delete().in('row_id',ids);
     if(a.error)throw a.error;
     return true;
@@ -3604,10 +3552,6 @@ function cleanupDeletedStyleReferences(ids){
   if(!ids.length)return;
   cleanupRemovedStyles(ids);
   SHOWROOM_COLLECTION_ASSIGNMENTS=(SHOWROOM_COLLECTION_ASSIGNMENTS||[]).filter(function(a){return ids.indexOf(parseInt(a.row_id))<0;});
-  Object.keys(FIGMA_STYLE_LINKS||{}).forEach(function(k){
-    var links=FIGMA_STYLE_LINKS[k]||{};
-    ids.forEach(function(id){delete links[id];delete links[String(id)];});
-  });
   try{
     loadCanvases();
     var changed=false;
@@ -3709,14 +3653,13 @@ async function load(){
     if(_migratedNoName||_norm||_seed)setTimeout(pushToSupabase,900);
     await loadFolders();
     await loadScopedCollections();
-    await loadFigmaConnections();
   }catch(err){
     console.error('Supabase load error:',err);setSbStatus('err');
     var _emsg=err&&(err.message||err.code)?('DB error: '+(err.message||err.code)):'DB connection failed Ã¢â‚¬â€ tap the red dot to retry';
     toast(_emsg,'err');
     if(AUTH_PROFILE&&!isAdmin()){
       // Non-admin: skip localStorage fallback; still try to load folders
-      try{await loadFolders();await loadScopedCollections();await loadFigmaConnections();}catch(_fe){console.error('loadFolders after load fail:',_fe);}
+      try{await loadFolders();await loadScopedCollections();}catch(_fe){console.error('loadFolders after load fail:',_fe);}
       return;
     }
     // Admin: fall back to localStorage
@@ -4317,105 +4260,6 @@ async function loadScopedCollections(){
     }
   }catch(e){console.warn('Scoped collections load failed',e);}
 }
-function collectionFigmaKey(name,meta){
-  meta=meta||collectionMetaByRef(name)||{};
-  var cname=collectionDisplayName(name,meta);
-  var scope=meta.scope||collectionScopeKeyFromParts(meta.owner_type||activeCompanyType()||'Brand',meta.owner_company||meta.company||activeCompanyName()||'',meta.owner_group||meta.group||'');
-  return scope+'::'+String(cname||'').trim();
-}
-function figmaConnectionForCollection(name){
-  return FIGMA_COLLECTION_CONNECTIONS[collectionFigmaKey(name)]||null;
-}
-function figmaSyncStatus(name){
-  var c=figmaConnectionForCollection(name);
-  return c?(c.status||'Changes available'):'Disconnected';
-}
-function styleFigmaSnapshot(r){
-  return {row_id:r.id,image:r.photo||r.photo2||'',style_ref:r.modelo||'',origin:r.origin||'',supplier:r.supplier||'',status:rowStatus(r)||'PENDING',fob:r.fob1||r.fob_closed||'',fsd:r.fsd||''};
-}
-async function loadFigmaConnections(){
-  FIGMA_COLLECTION_CONNECTIONS={};FIGMA_STYLE_LINKS={};
-  if(!isLoggedIn())return;
-  try{
-    var c=await sb.from('figma_collection_connections').select('*');
-    if(!c.error)(c.data||[]).forEach(function(x){var key=x.stdtex_collection_key||((x.collection_scope||'')+'::'+(x.collection_name||''));if(key)FIGMA_COLLECTION_CONNECTIONS[key]=x;});
-    var l=await sb.from('figma_style_links').select('*');
-    if(!l.error)(l.data||[]).forEach(function(x){if(!FIGMA_STYLE_LINKS[x.collection_connection_id])FIGMA_STYLE_LINKS[x.collection_connection_id]={};FIGMA_STYLE_LINKS[x.collection_connection_id][x.row_id]=x;});
-  }catch(e){console.warn('Figma sync tables not ready',e);}
-}
-function parseFigmaIds(input){
-  var s=String(input||'').trim(),out={file_id:'',node_id:''};
-  var fm=s.match(/figma\.com\/(?:file|design)\/([^\/\?]+)/i);if(fm)out.file_id=fm[1];
-  var nm=s.match(/[?&]node-id=([^&]+)/i);if(nm)out.node_id=decodeURIComponent(nm[1]);
-  if(!out.file_id&&!s.includes('/')&&!s.includes('?'))out.file_id=s;
-  return out;
-}
-function openFigmaConnectModal(){
-  return;
-}
-function closeFigmaConnectModal(){return;}
-async function saveFigmaConnection(){
-  if(!SHOWROOM_FOLDER||!isLoggedIn())return;
-  var file=(gV('figma-file-id')||'').trim(),node=(gV('figma-node-id')||'').trim(),parsed=parseFigmaIds(file);
-  if(parsed.file_id){file=parsed.file_id;if(parsed.node_id&&!node)node=parsed.node_id;}
-  if(!file||!node){toast('Figma file and page/frame ID required','warn');return;}
-  var meta=collectionMetaByRef(SHOWROOM_FOLDER)||{},key=collectionFigmaKey(SHOWROOM_FOLDER,meta),scope=key.split('::')[0],display=collectionDisplayName(SHOWROOM_FOLDER,meta);
-  var row={stdtex_collection_key:key,collection_scope:scope,collection_name:display,figma_file_id:file,figma_node_id:node,figma_node_type:'frame',status:'Changes available',updated_at:new Date().toISOString(),created_by:AUTH_USER?AUTH_USER.id:null};
-  try{
-    var res=await sb.from('figma_collection_connections').upsert(row,{onConflict:'stdtex_collection_key'}).select('*').maybeSingle();
-    if(res.error)throw res.error;
-    FIGMA_COLLECTION_CONNECTIONS[key]=res.data||row;
-    closeFigmaConnectModal();renderShowroom();toast('Figma connected','ok');
-  }catch(e){toast('Figma connection error: '+(e.message||JSON.stringify(e)),'err');}
-}
-function openCurrentCollectionInFigma(){
-  var c=figmaConnectionForCollection(SHOWROOM_FOLDER);
-  if(!c){openFigmaConnectModal();return;}
-  var node=c.figma_node_id?('?node-id='+encodeURIComponent(c.figma_node_id)):'';
-  window.open('https://www.figma.com/file/'+encodeURIComponent(c.figma_file_id)+node,'_blank');
-}
-async function disconnectCurrentCollectionFigma(){
-  var c=figmaConnectionForCollection(SHOWROOM_FOLDER);
-  if(!c){toast('Collection is not connected to Figma','warn');return;}
-  if(!confirm('Disconnect this collection from Figma? Existing Figma cards will not be deleted.'))return;
-  try{
-    await sb.from('figma_style_links').delete().eq('collection_connection_id',c.id);
-    var d=await sb.from('figma_collection_connections').delete().eq('id',c.id);
-    if(d.error)throw d.error;
-    delete FIGMA_COLLECTION_CONNECTIONS[collectionFigmaKey(SHOWROOM_FOLDER)];
-    renderShowroom();toast('Figma disconnected','ok');
-  }catch(e){toast('Disconnect error: '+(e.message||JSON.stringify(e)),'err');}
-}
-async function syncCurrentCollectionFigma(){
-  if(!requireAuthAction())return;
-  if(!SHOWROOM_FOLDER){toast('Open a collection first','warn');return;}
-  var c=figmaConnectionForCollection(SHOWROOM_FOLDER);
-  if(!c){openFigmaConnectModal();return;}
-  var rows=collectionRows(SHOWROOM_FOLDER),links=FIGMA_STYLE_LINKS[c.id]||{},updated=0,images=0,created=0,conflicts=0,review=0,now=new Date().toISOString();
-  try{
-    await sb.from('figma_collection_connections').update({status:'Syncing',updated_at:now}).eq('id',c.id);
-    for(var i=0;i<rows.length;i++){
-      var r=rows[i],snap=styleFigmaSnapshot(r),old=links[r.id],changed=JSON.stringify((old&&old.last_snapshot)||{})!==JSON.stringify(snap);
-      if(old&&changed){
-        if((old.last_snapshot||{}).image!==snap.image)images++;
-        updated++;
-        await sb.from('figma_style_links').update({last_snapshot:snap,sync_status:'Synced',review_required:false,updated_at:now}).eq('id',old.id);
-      }else if(!old){
-        created++;
-        var ins=await sb.from('figma_style_links').insert({collection_connection_id:c.id,row_id:r.id,figma_instance_id:'pending-figma-'+c.id+'-'+r.id,last_snapshot:snap,sync_status:'Synced',review_required:false,updated_at:now}).select('*').maybeSingle();
-        if(!ins.error&&ins.data){if(!FIGMA_STYLE_LINKS[c.id])FIGMA_STYLE_LINKS[c.id]={};FIGMA_STYLE_LINKS[c.id][r.id]=ins.data;}
-      }
-    }
-    var currentIds={};rows.forEach(function(r){currentIds[r.id]=1;});
-    Object.keys(links).forEach(function(id){if(!currentIds[id])review++;});
-    var summary={updated:updated,images_replaced:images,new_imported:0,created_cards:created,conflicts:conflicts,review_required:review};
-    var status=conflicts?'Conflicts':(review?'Changes available':'Synced');
-    var done=await sb.from('figma_collection_connections').update({status:status,last_synced_at:now,last_sync_summary:summary,last_snapshot:{styles:rows.map(styleFigmaSnapshot)},updated_at:now}).eq('id',c.id).select('*').maybeSingle();
-    if(!done.error&&done.data)FIGMA_COLLECTION_CONNECTIONS[collectionFigmaKey(SHOWROOM_FOLDER)]=done.data;
-    renderShowroom();
-    toast(updated+' styles updated - '+images+' images replaced - 0 new styles imported - '+conflicts+' conflicts require review','ok');
-  }catch(e){toast('Sync error: '+(e.message||JSON.stringify(e)),'err');}
-}
 function setStyleMeta(r,msgs,files,collections,meta,sharedBrands,brandCollections){
   if(collections==null)collections=styleCollections(r);
   if(meta==null)meta=styleLifecycleMeta(r);
@@ -4591,8 +4435,7 @@ async function updateCompanyCollectionExplicit(oldMeta,newName,fsd,newGroup){
 }
 async function deleteCompanyCollectionExplicit(meta){
   if(!meta||!meta.name)return;
-  var company=meta.owner_company||meta.company||activeCompanyName(),type=meta.owner_type||activeCompanyType()||'Brand',group=meta.owner_group||meta.group||'',name=meta.name,key=collectionScopeKeyFromParts(type,company,group),storeKey=key+'::'+name,figma=FIGMA_COLLECTION_CONNECTIONS[storeKey];
-  if(figma){try{await sb.from('figma_style_links').delete().eq('collection_connection_id',figma.id);await sb.from('figma_collection_connections').delete().eq('id',figma.id);}catch(_e){}delete FIGMA_COLLECTION_CONNECTIONS[storeKey];}
+  var company=meta.owner_company||meta.company||activeCompanyName(),type=meta.owner_type||activeCompanyType()||'Brand',group=meta.owner_group||meta.group||'',name=meta.name,key=collectionScopeKeyFromParts(type,company,group),storeKey=key+'::'+name;
   var a=await sb.from('style_collection_assignments').delete().eq('owner_company',company).eq('owner_group',group).eq('owner_type',type).eq('collection_name',name);
   if(a.error)throw a.error;
   var c=meta.id?await sb.from('showroom_collections_scoped').delete().eq('id',meta.id):await sb.from('showroom_collections_scoped').delete().eq('owner_company',company).eq('owner_group',group).eq('owner_type',type).eq('name',name);
