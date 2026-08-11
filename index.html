@@ -23,6 +23,7 @@
 <script src="src/features/groups/groupRepository.js"></script>
 <script src="src/features/groups/index.js"></script>
 <script src="src/features/collections/collectionModel.js"></script>
+<script src="src/features/collections/collectionService.js"></script>
 <script src="src/features/collections/index.js"></script>
 <script src="src/features/styles/styleModel.js"></script>
 <script src="src/features/styles/styleRepository.js"></script>
@@ -4568,18 +4569,7 @@ function companyCollectionsList(companyName,type){
   return out.sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));});
 }
 function collectionRowsForMeta(meta){
-  meta=meta||{};
-  var name=meta.name||'',type=meta.owner_type||'Brand',company=meta.owner_company||'';
-  var assignedIds={};
-  (SHOWROOM_COLLECTION_ASSIGNMENTS||[]).forEach(function(a){
-    if(assignmentMatchesCollectionMeta(a,meta,name))assignedIds[String(a.row_id)]=true;
-  });
-  return ROWS.filter(function(r){
-    if(String(type)==='Supplier')return normCompanyName(r.supplier)===normCompanyName(company)&&styleCollections(r).indexOf(name)>=0;
-    if(assignedIds[String(r.id)])return true;
-    var map=styleBrandCollectionMap(r);
-    return brandCollectionMapHasNameForMeta(map,meta,name);
-  });
+  return CollectionsDomain.rowsForMeta(meta,{rows:ROWS,assignments:SHOWROOM_COLLECTION_ASSIGNMENTS,normalizeName:normCompanyName,assignmentMatchesCollectionMeta:assignmentMatchesCollectionMeta,styleCollections:styleCollections,styleBrandCollectionMap:styleBrandCollectionMap,brandCollectionMapHasNameForMeta:brandCollectionMapHasNameForMeta});
 }
 function collectionCompanySummary(meta){return collectionSummary(collectionRowsForMeta(meta));}
 function adminCollectionGroupOptions(companyName,selected){
@@ -5344,10 +5334,7 @@ function collectionBoardRefs(){
   });
 }
 function collectionRows(name){
-  var meta=collectionMetaByRef(name)||{},display=collectionDisplayName(name,meta);
-  if(meta.name&&!collectionOwnedByActiveCompany(meta))return [];
-  var rows=(meta&&meta.name)?collectionRowsForMeta(meta):ROWS.filter(function(r){return currentStyleCollections(r).indexOf(display)>=0;});
-  return rows.filter(function(r){return !AUTH_PROFILE||adminBypassActive()||canAccessRowForCurrentUser(r);});
+  return CollectionsDomain.rows(name,{rows:ROWS,authProfile:AUTH_PROFILE,adminBypass:adminBypassActive(),collectionMetaByRef:collectionMetaByRef,collectionDisplayName:collectionDisplayName,collectionOwnedByActiveCompany:collectionOwnedByActiveCompany,collectionRowsForMeta:collectionRowsForMeta,currentStyleCollections:currentStyleCollections,canAccessRowForCurrentUser:canAccessRowForCurrentUser});
 }
 function collectionSearchQuery(){
   return (COLLECTION_SEARCH||'').toLowerCase().trim();

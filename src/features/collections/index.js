@@ -11,5 +11,7 @@ var CollectionsDomain={
   ownedByCompany:collectionOwnedByCompanyModel,
   keyVisible:collectionKeyVisibleModel,
   summary:collectionSummaryModel,
-  sortRefs:sortCollectionRefsModel
+  sortRefs:sortCollectionRefsModel,
+  rowsForMeta:collectionRowsForMetaRead,
+  rows:collectionRowsRead
 };
