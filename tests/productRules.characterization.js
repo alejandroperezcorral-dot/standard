@@ -124,10 +124,10 @@ function makeCollectionRepo() {
       styleAssignedToCurrentBrandCollection: () => true
     }
   });
-  knownConflict(
-    'EXPLORE_COLLECTION_MEMBERSHIP_HIDES_STYLE',
-    exploreRows.length === 0,
-    'Default Explore currently hides a style when styleAssignedToCurrentBrandCollection(row) is true.'
+  assert.strictEqual(
+    exploreRows.length,
+    1,
+    'Collection membership alone must not remove a style from default Explore'
   );
 
   const repo = makeCollectionRepo();

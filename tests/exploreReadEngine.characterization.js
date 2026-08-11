@@ -109,7 +109,6 @@ function oldShowroomRows(input) {
     if (state.source && ctx.sourceLabel(r) !== state.source) return false;
     const active = state.activeCollection;
     if (state.collectionsView && active && ctx.currentStyleCollections(r).indexOf(active) < 0) return false;
-    if (!state.collectionsView && ctx.styleAssignedToCurrentBrandCollection(r)) return false;
     if (state.savedOnly && state.savedIds.indexOf(parseInt(r.id)) < 0) return false;
     if (fs && (r.supplier || '') !== fs) return false;
     if (fse && (r.temporada || '') !== fse) return false;
@@ -179,5 +178,42 @@ scenarios.forEach(([label, input]) => {
     throw new Error(label + ' mismatch: ' + ids(oldRows) + ' !== ' + ids(newRows));
   }
 });
+
+{
+  const input = makeContext({
+    rows: [baseRows[1]],
+    collectionMap: { 2: ['Collection A', 'Collection B', 'Collection C'] },
+    filters: { collectionsView: false }
+  });
+  const rows = newShowroomRows(input);
+  if (ids(rows) !== '2') {
+    throw new Error('Collected style must remain visible once in default Explore; got ' + ids(rows));
+  }
+}
+
+{
+  const input = makeContext({
+    rows: [baseRows[1], baseRows[2]],
+    collectionMap: { 2: ['Collection A', 'Collection B'], 3: ['Collection C'] },
+    filters: { collectionsView: true, activeCollection: 'Collection B' }
+  });
+  const rows = newShowroomRows(input);
+  if (ids(rows) !== '2') {
+    throw new Error('Explicit Collections view must still filter by collection; got ' + ids(rows));
+  }
+}
+
+{
+  const input = makeContext({
+    rows: [baseRows[1]],
+    collectionMap: { 2: ['Collection A'] },
+    accessible: { 2: false },
+    filters: { collectionsView: false }
+  });
+  const rows = newShowroomRows(input);
+  if (rows.length !== 0) {
+    throw new Error('Inaccessible collected style must not become visible in Explore.');
+  }
+}
 
 console.log('explore read engine characterization ok ' + scenarios.length);

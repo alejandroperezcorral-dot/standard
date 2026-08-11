@@ -8,7 +8,6 @@ function getVisibleExploreRows(input){
   var styleSharedWithActiveCompany=context.styleSharedWithActiveCompany||function(){return false;};
   var canAccessRow=context.canAccessRowForCurrentUser||function(){return true;};
   var currentStyleCollections=context.currentStyleCollections||function(){return [];};
-  var styleAssignedToCurrentBrandCollection=context.styleAssignedToCurrentBrandCollection||function(){return false;};
   return rows.filter(function(row){
     var st=rowStatus(row);
     styleSharedWithActiveCompany(row);
@@ -19,7 +18,6 @@ function getVisibleExploreRows(input){
     if(state.status&&st!==state.status)return false;
     if(state.source&&sourceLabel(row)!==state.source)return false;
     if(state.collectionsView&&state.activeCollection&&currentStyleCollections(row).indexOf(state.activeCollection)<0)return false;
-    if(!state.collectionsView&&styleAssignedToCurrentBrandCollection(row))return false;
     if(state.savedOnly&&state.savedIds.indexOf(parseInt(row&&row.id))<0)return false;
     if(!exploreMatchesExactFilter(row,'supplier',state.supplier))return false;
     if(!exploreMatchesExactFilter(row,'temporada',state.season))return false;

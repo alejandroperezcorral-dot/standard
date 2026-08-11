@@ -2201,7 +2201,7 @@ function styleSharedWithActiveCompany(r){
   var unlocked=supplierExploreAccessForBrand(r&&r.supplier,activeCompanyName(),profileCompanyGroup());
   if(!unlocked)return false;
   if(styleSharedBrands(r).some(function(n){return normCompanyName(n)===company;}))return true;
-  return sourceLabel(r)==='SUPPLIER'&&!styleAssignedToCurrentBrandCollection(r);
+  return sourceLabel(r)==='SUPPLIER';
 }
 function styleMarkedSharedWithActiveCompany(r){
   var company=normCompanyName(activeCompanyName());
