@@ -25,6 +25,7 @@
 <script src="src/features/collections/collectionModel.js"></script>
 <script src="src/features/collections/collectionRepository.js"></script>
 <script src="src/features/collections/collectionService.js"></script>
+<script src="src/features/collections/collectionRenderer.js"></script>
 <script src="src/features/collections/index.js"></script>
 <script src="src/features/styles/styleModel.js"></script>
 <script src="src/features/styles/styleRepository.js"></script>
@@ -4365,9 +4366,7 @@ function collectionRowsForMeta(meta){
 function collectionCompanySummary(meta){return collectionSummary(collectionRowsForMeta(meta));}
 function adminCollectionGroupOptions(companyName,selected){
   var groups=companyLocalGroups(companyName||activeCompanyName());
-  var h='<option value="">Private collection</option>';
-  groups.forEach(function(g){h+='<option value="'+escHtml(g.name)+'" '+(normCompanyName(g.name)===normCompanyName(selected)?'selected':'')+'>'+escHtml(g.name)+'</option>';});
-  return h;
+  return CollectionsDomain.renderer.adminGroupOptions({groups:groups,selected:selected,helpers:{escHtml:escHtml,normalizeName:normCompanyName}});
 }
 function renderCompanyCollectionsManager(companyName,type,adminMode){
   var list=companyCollectionsList(companyName,type),canManage=adminMode||canManageCompanyCollections(companyName,type);
@@ -5215,17 +5214,7 @@ function collectionPassesPeriod(name){
 }
 function collectionsScopeTabsHtml(){
   var groups=collectionAvailableGroups();
-  var h='<div class="collections-tabs"><button class="'+(COLLECTIONS_SCOPE==='mine'?'on':'')+'" onclick="setCollectionsScope(\'mine\')">My collections</button><button class="'+(COLLECTIONS_SCOPE==='groups'?'on':'')+'" onclick="setCollectionsScope(\'groups\')">My Groups Collections</button></div>';
-  if(COLLECTIONS_SCOPE==='groups'){
-    h+='<div class="collections-group-filters">';
-    if(!groups.length)h+='<span>No groups assigned yet</span>';
-    groups.forEach(function(g){
-      var on=!COLLECTION_GROUP_FILTERS.length||COLLECTION_GROUP_FILTERS.some(function(v){return normCompanyName(v)===normCompanyName(g);});
-      h+='<label><input type="checkbox" value="'+escHtml(g)+'" '+(on?'checked':'')+' onchange="toggleCollectionGroupFilter(\''+escHtml(g)+'\',this.checked)"> '+escHtml(g)+'</label>';
-    });
-    h+='</div>';
-  }
-  return h;
+  return CollectionsDomain.renderer.scopeTabs({scope:COLLECTIONS_SCOPE,groups:groups,groupFilters:COLLECTION_GROUP_FILTERS,helpers:{escHtml:escHtml,normalizeName:normCompanyName}});
 }
 function setCollectionsScope(scope){
   COLLECTIONS_SCOPE=scope==='groups'?'groups':'mine';
@@ -5251,26 +5240,8 @@ function collectionsFilterHtml(){
   var years=collectionFilterYears();
   var mf=Math.min(COLLECTION_FILTER_MONTH_FROM,COLLECTION_FILTER_MONTH_TO),mt=Math.max(COLLECTION_FILTER_MONTH_FROM,COLLECTION_FILTER_MONTH_TO);
   COLLECTION_FILTER_MONTH_FROM=mf;COLLECTION_FILTER_MONTH_TO=mt;
-  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var companies=brandCompanyNames(),groups=collectionGroupNames(COLLECTION_FILTER_COMPANY);
-  var left=((mf-1)/11*100),right=(100-((mt-1)/11*100));
-  var h='<div class="collections-filter-panel"><div class="collections-filter-main">';
-  h+='<select aria-label="Collection year" onchange="setCollectionYearFilter(this.value)"><option value="">All years</option>';
-  years.forEach(function(y){h+='<option value="'+escHtml(y)+'" '+(y===COLLECTION_FILTER_YEAR?'selected':'')+'>'+escHtml(y)+'</option>';});
-  h+='</select>';
-  h+='<button type="button" class="advanced-filter-toggle" onclick="toggleCollectionAdvancedFilters()" title="'+(COLLECTION_ADVANCED_OPEN?'Hide advanced filters':'Advanced filters')+'" aria-label="'+(COLLECTION_ADVANCED_OPEN?'Hide advanced filters':'Advanced filters')+'"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><circle cx="16" cy="7" r="2"/><path d="M4 17h2"/><path d="M10 17h10"/><circle cx="8" cy="17" r="2"/></svg></button></div>';
-  if(COLLECTION_ADVANCED_OPEN){
-    h+='<div class="collections-advanced-filters">';
-    h+='<div class="month-range"><b>'+months[mf-1]+' - '+months[mt-1]+'</b><div class="month-range-track" onclick="setCollectionMonthFromTrack(event)"><span class="month-range-line"></span><span class="month-range-fill" style="left:'+left+'%;right:'+right+'%"></span><input type="range" min="1" max="12" step="1" value="'+mf+'" oninput="setCollectionMonthFilter(this.value,null)"><input type="range" min="1" max="12" step="1" value="'+mt+'" oninput="setCollectionMonthFilter(null,this.value)"></div><div class="month-ticks">'+months.map(function(m){return '<span>'+m+'</span>';}).join('')+'</div></div>';
-    h+='<select onchange="setCollectionCompanyFilter(this.value)"><option value="">All brand companies</option>';
-    companies.forEach(function(v){h+='<option value="'+escHtml(v)+'" '+(v===COLLECTION_FILTER_COMPANY?'selected':'')+'>'+escHtml(v)+'</option>';});
-    h+='</select>';
-    h+='<select onchange="setCollectionGroupFilter(this.value)"><option value="">All groups</option>';
-    groups.forEach(function(v){h+='<option value="'+escHtml(v)+'" '+(v===COLLECTION_FILTER_GROUP?'selected':'')+'>'+escHtml(v)+'</option>';});
-    h+='</select><button type="button" onclick="clearCollectionAdvancedFilters()">Clear advanced</button></div>';
-  }
-  h+='</div>';
-  return h;
+  return CollectionsDomain.renderer.filters({years:years,year:COLLECTION_FILTER_YEAR,monthFrom:mf,monthTo:mt,advancedOpen:COLLECTION_ADVANCED_OPEN,companies:companies,groups:groups,companyFilter:COLLECTION_FILTER_COMPANY,groupFilter:COLLECTION_FILTER_GROUP,helpers:{escHtml:escHtml}});
 }
 function setCollectionYearFilter(v){COLLECTION_FILTER_YEAR=v||'';renderCollectionsBoard();}
 function toggleCollectionAdvancedFilters(){COLLECTION_ADVANCED_OPEN=!COLLECTION_ADVANCED_OPEN;renderCollectionsBoard();}
@@ -5293,10 +5264,7 @@ function setCollectionMonthFromTrack(ev){
 }
 function collectionOptionsHtml(cur,label){
   var vals=showroomFolderNames();
-  if(cur&&vals.indexOf(cur)<0)vals.unshift(cur);
-  var h='<option value="">'+(label||'No collection')+'</option>';
-  vals.forEach(function(v){h+='<option value="'+escHtml(v)+'"'+(v===cur?' selected':'')+'>'+escHtml(v)+'</option>';});
-  return h;
+  return CollectionsDomain.renderer.collectionOptions({values:vals,current:cur,label:label,helpers:{escHtml:escHtml}});
 }
 function companyKey(name){return CompaniesDomain.key(name);}
 function companyTypeBadge(t){return CompaniesDomain.typeBadgeHtml(t,escHtml);}
@@ -6433,14 +6401,14 @@ function renderCollectionsBoard(){
     var folderOwnMatch=collectionMatchesSearch(SHOWROOM_FOLDER,q)&&([folderName,detailMeta.owner_company||detailMeta.company,detailMeta.owner_group||detailMeta.group,detailMeta.fsd,collectionCreatorEmail(detailMeta)].join(' ').toLowerCase().indexOf(q)>=0);
     var detailRows=q&&!folderOwnMatch?collectionRows(SHOWROOM_FOLDER).filter(function(r){return collectionRowMatchesSearch(r,q);}):collectionRows(SHOWROOM_FOLDER),sum=collectionSummary(detailRows);
     var meta=detailMeta,fsdText=meta.fsd?' - FSD '+meta.fsd:'';
-    h+='<div class="collections-page-head"><button onclick="backToCollectionsBoard()">&#8592; My collections</button><div><h2>'+escHtml(folderName)+'</h2><p>'+detailRows.length+' style'+(detailRows.length!==1?'s':'')+' in this board'+escHtml(fsdText)+'</p><div class="collection-stats"><div class="collection-stat"><span>Total units</span><b>'+fN(sum.units,0)+'</b></div><div class="collection-stat"><span>IMU avg</span><b>'+fP(sum.imu)+'</b></div></div></div><div class="collection-head-actions">'+(isSupplierUser()&&!isAdmin()?'<button onclick="shareCurrentCollection()">Share collection</button>':'')+'<button onclick="openEditCollectionModal()">Edit collection</button>'+(canDeleteCollectionMeta(meta)?'<button onclick="removeCurrentCollection()" style="background:#fee2e2;color:#b91c1c">Remove</button>':'')+'</div></div>';
-    if(!detailRows.length)h+='<div class="empty-showroom"><b>This collection is empty</b><span>Add styles from Explore.</span><button onclick="showroomExploreAll()">Go to Explore</button></div>';
+    h+=CollectionsDomain.renderer.detailHeader({folderName:folderName,count:detailRows.length,fsdText:fsdText,summary:sum,supplierCanShare:isSupplierUser()&&!isAdmin(),canRemove:canDeleteCollectionMeta(meta),helpers:{escHtml:escHtml,formatNumber:fN,formatPercent:fP}});
+    if(!detailRows.length)h+=CollectionsDomain.renderer.emptyState('detail');
     else{
       h+='<div class="collection-detail-grid">';
       detailRows.forEach(function(r){
         var c=cm(r),img=r.photo||r.photo2||'',src=sourceLabel(r),sref=styleSupplierRef(r);
         var pinH=190+((r.id||0)%5)*58;
-        h+='<div class="style-card" onclick="openStyleDetail('+r.id+')">'+(isLoggedIn()?'<label class="pin-select" onclick="event.stopPropagation()"><input type="checkbox" class="sh-sel" data-id="'+r.id+'" '+(SHOWROOM_SELECTED[r.id]?'checked':'')+' onchange="toggleShowroomSelect('+r.id+',this.checked)" style="cursor:pointer"></label>':'')+'<div class="style-img" style="height:'+pinH+'px">'+(img?'<img src="'+img+'" alt="" loading="lazy" decoding="async">':'<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>')+'</div><div class="style-body"><div class="style-meta">'+statusDot(rowStatus(r))+'<span class="source-pill">'+escHtml(src)+'</span></div><div class="style-ref">'+escHtml(r.modelo||'NO STYLE')+'</div>'+(sref?'<div class="style-supplier-ref">Supplier ref: '+escHtml(sref)+'</div>':'')+'<div class="style-desc">'+escHtml(r.desc||'')+'</div><div class="style-supp">'+escHtml(r.supplier||'No supplier')+'</div><div class="style-foot"><span>'+escHtml(showroomFolderName(r))+'</span>'+(isLoggedIn()?'<b>'+fU(r.fob1||r.fob_closed||c.fobT||0)+'</b>':'')+'</div></div></div>';
+        h+=CollectionsDomain.renderer.detailStyleCard({row:r,calculations:c,image:img,sourceLabel:src,supplierRef:sref,pinHeight:pinH,selected:SHOWROOM_SELECTED[r.id],loggedIn:isLoggedIn(),folderName:showroomFolderName(r),helpers:{escHtml:escHtml,statusDot:statusDot,rowStatus:rowStatus,formatUsd:fU}});
       });
       h+='</div>';
     }
@@ -6456,15 +6424,11 @@ function renderCollectionsBoard(){
   visibleNames.forEach(function(n){
     var meta=collectionMetaByRef(n),display=collectionDisplayName(n,meta),ownMatch=q&&[display,meta.fsd,meta.owner_company||meta.company,meta.owner_group||meta.group,collectionCreatorEmail(meta)].join(' ').toLowerCase().indexOf(q)>=0;
     var allRows=collectionRows(n),rows=ownMatch?allRows:filteredCollectionRows(n),imgs=(rows.length?rows:allRows).map(function(r){return r.photo||r.photo2||'';}).filter(Boolean).slice(0,4),sum=collectionSummary(rows);
-    var js=JSON.stringify(n).replace(/"/g,'&quot;');
     var creator=collectionCreatorEmail(meta);
-    h+='<button class="collection-card" onclick="openCollectionBoard('+js+')"><div class="collection-collage mosaic-'+Math.min(imgs.length,4)+'">';
-    for(var i=0;i<Math.max(1,Math.min(imgs.length,4));i++)h+='<span>'+(imgs[i]?'<img src="'+imgs[i]+'" alt="" loading="lazy" decoding="async">':'')+'</span>';
-    var fsd=meta.fsd?' - FSD '+meta.fsd:'',cg=((meta.owner_company||meta.company)?(' - '+(meta.owner_company||meta.company)):'')+((meta.owner_group||meta.group)?(' - '+(meta.owner_group||meta.group)):'');
-    h+='</div><b>'+escHtml(display)+'</b><small>'+rows.length+' style'+(rows.length!==1?'s':'')+escHtml(fsd+cg)+'</small>'+(creator?'<small class="collection-creator">Created by '+escHtml(creator)+'</small>':'')+'<div class="collection-stats"><div class="collection-stat"><span>Units</span><b>'+fN(sum.units,0)+'</b></div><div class="collection-stat"><span>IMU</span><b>'+fP(sum.imu)+'</b></div></div></button>';
+    h+=CollectionsDomain.renderer.boardCard({ref:n,meta:meta,display:display,rows:rows,images:imgs,summary:sum,creator:creator,helpers:{escHtml:escHtml,formatNumber:fN,formatPercent:fP}});
   });
-  if(!names.length)h+='<div class="empty-showroom first-collection-empty" style="grid-column:1/-1"><b>Create your first collection</b><span>Organize saved styles by season, group or delivery window.</span><button onclick="openCreateCollectionModal()">Create your first collection</button></div>';
-  else if(!visibleNames.length)h+='<div class="empty-showroom" style="grid-column:1/-1">No collections have an FSD inside this period.</div>';
+  if(!names.length)h+=CollectionsDomain.renderer.emptyState('first');
+  else if(!visibleNames.length)h+=CollectionsDomain.renderer.emptyState('period');
   h+='</div></div>';
   body.innerHTML=h;
   renderShowroomBulkbar();

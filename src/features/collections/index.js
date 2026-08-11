@@ -20,5 +20,6 @@ var CollectionsDomain={
   renameScopedCollectionRemote:renameScopedCollectionRemoteWrite,
   removeScopedCollectionRemote:removeScopedCollectionRemoteWrite,
   updateCompanyCollectionExplicit:updateCompanyCollectionExplicitWrite,
-  deleteCompanyCollectionExplicit:deleteCompanyCollectionExplicitWrite
+  deleteCompanyCollectionExplicit:deleteCompanyCollectionExplicitWrite,
+  renderer:CollectionRenderer
 };
