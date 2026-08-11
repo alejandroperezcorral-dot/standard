@@ -32,6 +32,10 @@
 <script src="src/features/styles/styleRepository.js"></script>
 <script src="src/features/styles/styleService.js"></script>
 <script src="src/features/styles/index.js"></script>
+<script src="src/features/explore/exploreModel.js"></script>
+<script src="src/features/explore/exploreState.js"></script>
+<script src="src/features/explore/exploreReadEngine.js"></script>
+<script src="src/features/explore/index.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -6466,27 +6470,38 @@ function renderCollectionsBoard(){
   renderShowroomBulkbar();
 }
 function showroomRows(){
-  var q=(EXPLORE_SEARCH||gV('sh-q')||'').toLowerCase(),fs=gV('sh-supp'),fse=gV('sh-season'),fd=gV('sh-dept'),fst=gV('sh-status'),fc=SHOWROOM_FILTER_CAT,fo=SHOWROOM_FILTER_ORIGIN;
-  return ROWS.filter(function(r){
-    var st=rowStatus(r);
-    var sharedWithBrand=styleSharedWithActiveCompany(r);
-    if(AUTH_PROFILE&&(!isAdmin()||_adminViewProfile)&&!canAccessRowForCurrentUser(r))return false;
-    if(!isLoggedIn()){
-      if(sourceLabel(r)!=='SUPPLIER')return false;
+  return ExploreDomain.visibleRows({
+    rows:ROWS,
+    state:ExploreDomain.createReadState({
+      search:EXPLORE_SEARCH||gV('sh-q')||'',
+      supplier:gV('sh-supp'),
+      season:gV('sh-season'),
+      department:gV('sh-dept'),
+      status:gV('sh-status'),
+      category:SHOWROOM_FILTER_CAT,
+      origin:SHOWROOM_FILTER_ORIGIN,
+      source:SHOWROOM_SOURCE,
+      collectionsView:SHOWROOM_COLLECTIONS_VIEW,
+      activeCollection:activeCollectionRef(),
+      savedOnly:SHOWROOM_SAVED_ONLY,
+      savedIds:savedShowroomIds(),
+      loggedIn:isLoggedIn(),
+      hasAuthProfile:!!AUTH_PROFILE,
+      adminBypass:isAdmin(),
+      adminViewActive:!!_adminViewProfile
+    }),
+    context:{
+      rowStatus:rowStatus,
+      sourceLabel:sourceLabel,
+      styleSharedWithActiveCompany:styleSharedWithActiveCompany,
+      canAccessRowForCurrentUser:canAccessRowForCurrentUser,
+      currentStyleCollections:currentStyleCollections,
+      styleAssignedToCurrentBrandCollection:styleAssignedToCurrentBrandCollection,
+      styleSupplierRef:styleSupplierRef,
+      styleFabricRef:styleFabricRef,
+      showroomFolderName:showroomFolderName,
+      baseNotes:baseNotes
     }
-    if(fst&&st!==fst)return false;
-    if(SHOWROOM_SOURCE&&sourceLabel(r)!==SHOWROOM_SOURCE)return false;
-    var active=activeCollectionRef();
-    if(SHOWROOM_COLLECTIONS_VIEW&&active&&currentStyleCollections(r).indexOf(active)<0)return false;
-    if(!SHOWROOM_COLLECTIONS_VIEW&&styleAssignedToCurrentBrandCollection(r))return false;
-    if(SHOWROOM_SAVED_ONLY&&savedShowroomIds().indexOf(parseInt(r.id))<0)return false;
-    if(fs&&(r.supplier||'')!==fs)return false;
-    if(fse&&(r.temporada||'')!==fse)return false;
-    if(fd&&(r.dept||'')!==fd)return false;
-    if(fc&&(r.cat||'')!==fc)return false;
-    if(fo&&(r.origin||'')!==fo)return false;
-    if(q&&[r.modelo,styleSupplierRef(r),styleFabricRef(r),r.desc,r.supplier,r.cat,r.origin,r.colour,r.dept,r.temporada,showroomFolderName(r),rowStatus(r),baseNotes(r.notes)].join(' ').toLowerCase().indexOf(q)<0)return false;
-    return true;
   });
 }
 function savedStarSvg(){
