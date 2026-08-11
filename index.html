@@ -14,6 +14,10 @@
 <script src="src/core/permissions.js"></script>
 <script src="src/supabase/client.js"></script>
 <script src="src/supabase/repositories/storageRepository.js"></script>
+<script src="src/features/styles/styleModel.js"></script>
+<script src="src/features/styles/styleRepository.js"></script>
+<script src="src/features/styles/styleService.js"></script>
+<script src="src/features/styles/index.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -1833,26 +1837,16 @@ var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
 };
-function isSupplierShowroomRow(r){
-  var n=(r&&r.notes)||'';
-  return (r&&r.source)==='SUPPLIER'||(r&&r.product_source)==='SUPPLIER'||/\[SOURCE:SUPPLIER\]/.test(n);
-}
-function rowStatus(r){
-  if(!r)return 'PENDING';
-  return r.status==='CLOSED'?'CLOSED':'PENDING';
-}
+function isSupplierShowroomRow(r){return isSupplierShowroomStyle(r);}
+function rowStatus(r){return styleStatus(r);}
 function statusLabel(s){return s==='PENDING'?'PENDING':s==='CLOSED'?'CLOSED':'';}
 function statusDot(s){
   var st=rowStatus({status:s});if(!st)return '';
   var c=SCOL[st]||SCOL.PENDING;
   return '<span class="status-pill" style="background:'+c.bg+';color:'+c.cl+'"><span style="font-size:10px;line-height:1">&#9679;</span>'+statusLabel(st)+'</span>';
 }
-function sourceLabel(r){
-  var n=(r&&r.notes)||'';
-  var m=n.match(/\[SOURCE:([A-Z]+)\]/);
-  return (r&&r.source)||r.product_source||(m?m[1]:'BUYER');
-}
-function isOpenBuyingRow(r){return rowStatus(r)==='PENDING';}
+function sourceLabel(r){return styleSource(r);}
+function isOpenBuyingRow(r){return isOpenStyle(r);}
 function demoImage(seed){
   var colors=['dbeafe','e5e7eb','ddd6fe','dcfce7','fee2e2','fef3c7','cffafe','f3e8ff','ffedd5','d1fae5'];
   var c=colors[Math.abs(seed)%colors.length];
@@ -3688,8 +3682,7 @@ async function sbClearAllRows(){
 async function load(){
   setSbStatus('sync');
   try{
-    var rowCols='id,fecha,modelo,colour,description,supplier,origin,transport,temporada,dept,cat,pvp_rub,fob1,fob2,fob3,fob_closed,weight,units,target_imu,notes,status,fsd,hod,ch_off,ch_mkt,ch_onl,sell_thru,lc_weeks,photo,photo2,cust_profile,capsule,fashionability,n_colours,user_id,folder_id';
-    var q=sb.from('negotiation_rows').select(rowCols).order('id',{ascending:true});
+    var q=selectNegotiationRowsForStyles(sb);
     if(AUTH_PROFILE&&!isAdmin()&&isSupplierUser()&&profileSupplierCompany()){
       q=q.eq('supplier',profileSupplierCompany());
     }else if(AUTH_PROFILE&&!isAdmin()&&AUTH_USER&&activeCompanyName()){
@@ -3706,18 +3699,7 @@ async function load(){
     var rows=r1.data,state=r2.data;
 
     if(rows&&rows.length>0){
-      ROWS=rows.map(function(r){return{
-        id:r.id,fecha:r.fecha,modelo:r.modelo,colour:r.colour||'',desc:r.description,
-        supplier:r.supplier,origin:r.origin,transport:r.transport,temporada:r.temporada,
-        dept:r.dept,cat:r.cat,pvp_rub:r.pvp_rub,fob1:r.fob1,fob2:r.fob2,
-        fob3:r.fob3,fob_closed:r.fob_closed,weight:r.weight,units:r.units,
-        target_imu:r.target_imu,notes:r.notes,status:r.status||null,
-        fsd:r.fsd,hod:r.hod||'',ch_off:r.ch_off,ch_mkt:r.ch_mkt,ch_onl:r.ch_onl,
-        sell_thru:r.sell_thru,lc_weeks:r.lc_weeks,photo:r.photo,photo2:r.photo2,
-        cust_profile:r.cust_profile,capsule:r.capsule,fashionability:r.fashionability,
-        n_colours:r.n_colours,user_id:r.user_id||null,
-        folder_id:r.folder_id||null
-      };});
+      ROWS=normalizeNegotiationRowsAsStyles(rows);
       if(AUTH_PROFILE&&(!isAdmin()||_adminViewProfile))ROWS=ROWS.filter(canAccessRowForCurrentUser);
     }
     if(state&&state.length){
@@ -4172,57 +4154,22 @@ function chatRoleLabel(){
   if(AUTH_PROFILE&&AUTH_PROFILE.role==='design')return 'Design';
   return 'Design/Buyer';
 }
-function noteTagValue(r,key){
-  var n=String((r&&r.notes)||''),re=new RegExp('\\['+key+':([\\s\\S]*?)\\]');
-  var m=n.match(re);
-  if(!m)return '';
-  try{return decodeURIComponent(m[1]);}catch(e){return m[1]||'';}
-}
-function styleSupplierRef(r){
-  return noteTagValue(r,'SUPPLIER_REF')||(r&&r.supplier_ref)||((r&&sourceLabel(r)==='SUPPLIER')?(r.modelo||''):'');
-}
-function styleFabricRef(r){
-  return noteTagValue(r,'FABRIC_REF')||(r&&r.fabric_ref)||'';
-}
-function styleLifecycleMeta(r){
-  return {supplierRef:styleSupplierRef(r),fabricRef:styleFabricRef(r)};
-}
+function noteTagValue(r,key){return noteTagValueForStyle(r,key);}
+function styleSupplierRef(r){return styleSupplierReference(r);}
+function styleFabricRef(r){return styleFabricReference(r);}
+function styleLifecycleMeta(r){return styleLifecycleMetadata(r);}
 function addStyleAuditMessage(r,text){
   if(!r||!text)return;
   var msgs=styleChatMessages(r);
   msgs.push({role:'System',email:AUTH_USER&&AUTH_USER.email||'',text:text,at:new Date().toLocaleString()});
   setStyleChatMessages(r,msgs);
 }
-function baseNotes(notes){
-  return String(notes||'').replace(/\n?\[(CHAT|FILES|COLLECTIONS|BRAND_COLLECTIONS|SUPPLIER_REF|FABRIC_REF|SHARED_BRANDS|SHARED_BRANDS_TEXT):[\s\S]*?\]/g,'').trim();
-}
-function styleChatMessages(r){
-  var n=String((r&&r.notes)||''),m=n.match(/\[CHAT:([\s\S]*?)\]/);
-  if(!m)return [];
-  try{return JSON.parse(decodeURIComponent(m[1]))||[];}catch(e){return [];}
-}
-function styleFiles(r){
-  var n=String((r&&r.notes)||''),m=n.match(/\[FILES:([\s\S]*?)\]/);
-  if(!m)return [];
-  try{return JSON.parse(decodeURIComponent(m[1]))||[];}catch(e){return [];}
-}
-function styleSharedBrands(r){
-  var n=String((r&&r.notes)||''),m=n.match(/\[SHARED_BRANDS:([\s\S]*?)\]/);
-  if(!m)return [];
-  try{return JSON.parse(decodeURIComponent(m[1]))||[];}catch(e){return [];}
-}
-function styleCollections(r){
-  var n=String((r&&r.notes)||''),m=n.match(/\[COLLECTIONS:([\s\S]*?)\]/),out=[];
-  if(m){try{out=JSON.parse(decodeURIComponent(m[1]))||[];}catch(e){out=[];}}
-  var cap=(r&&r.capsule||'').trim();
-  if(cap&&cap!=='Supplier Showroom'&&out.indexOf(cap)<0)out.push(cap);
-  return out.filter(function(x,i,a){return x&&a.indexOf(x)===i;});
-}
-function styleBrandCollectionMap(r){
-  var n=String((r&&r.notes)||''),m=n.match(/\[BRAND_COLLECTIONS:([\s\S]*?)\]/);
-  if(!m)return {};
-  try{return JSON.parse(decodeURIComponent(m[1]))||{};}catch(e){return {};}
-}
+function baseNotes(notes){return baseStyleNotes(notes);}
+function styleChatMessages(r){return styleChatMessagesFromNotes(r);}
+function styleFiles(r){return styleFilesFromNotes(r);}
+function styleSharedBrands(r){return styleSharedBrandsFromNotes(r);}
+function styleCollections(r){return styleCollectionNames(r);}
+function styleBrandCollectionMap(r){return styleBrandCollectionMapFromNotes(r);}
 function collectionScopeGroup(group){
   return group!==undefined?group:(_collectionScopeGroupOverride!==null?_collectionScopeGroupOverride:(profileCompanyGroup()||''));
 }
