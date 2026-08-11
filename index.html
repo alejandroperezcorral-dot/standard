@@ -22,6 +22,8 @@
 <script src="src/features/groups/groupModel.js"></script>
 <script src="src/features/groups/groupRepository.js"></script>
 <script src="src/features/groups/index.js"></script>
+<script src="src/features/collections/collectionModel.js"></script>
+<script src="src/features/collections/index.js"></script>
 <script src="src/features/styles/styleModel.js"></script>
 <script src="src/features/styles/styleRepository.js"></script>
 <script src="src/features/styles/styleService.js"></script>
@@ -4163,15 +4165,8 @@ function collectionScopeInfo(group){
   };
 }
 function collectionKeyVisible(key){
-  key=String(key||'');
-  if(key.indexOf('::')<0)return isSupplierUser()&&!isAdmin();
-  var scope=key.split('::')[0],parts=scope.split(':'),type=parts[0]||'',company=parts[1]||'',group=parts.slice(2).join(':');
   var current=collectionScopeInfo('');
-  if(adminBypassActive())return true;
-  if(type!==String(current.owner_type||'Brand').toLowerCase())return false;
-  if(company!==normCompanyName(current.owner_company))return false;
-  if(!group)return true;
-  return userCompanyGroups().some(function(g){return normCompanyName(g)===group;});
+  return CollectionsDomain.keyVisible(key,{legacySupplierVisible:isSupplierUser()&&!isAdmin(),adminBypass:adminBypassActive(),ownerType:current.owner_type,ownerCompany:current.owner_company,userGroups:userCompanyGroups()},normCompanyName);
 }
 function scopedRecordVisibleToCurrentUser(x){
   if(!x)return false;
@@ -4211,10 +4206,7 @@ function isBrandCollectionScope(){
 }
 function collectionStoreKey(name){return collectionScopeKey()+'::'+String(name||'').trim();}
 function collectionNameFromStoreKey(k){
-  k=String(k||'');
-  var prefix=collectionScopeKey()+'::';
-  if(k.indexOf(prefix)===0)return k.slice(prefix.length);
-  return k.indexOf('::')>=0?k.split('::').slice(1).join('::'):k;
+  return CollectionsDomain.nameFromStoreKey(k,collectionScopeKey());
 }
 function currentStyleCollections(r){
   if(isSupplierUser()&&!isAdmin()&&supplierOwnsStyle(r))return styleCollections(r);
@@ -4231,8 +4223,7 @@ function styleAssignedToCurrentBrandCollection(r){
   return isBrandCollectionScope()&&currentStyleCollections(r).length>0;
 }
 function supplierCollectionLabel(r){
-  var cols=styleCollections(r);
-  return (isSupplierUser()&&!isAdmin()&&cols.length)?cols.join(', '):'No collection';
+  return CollectionsDomain.supplierLabel(styleCollections(r),isSupplierUser()&&!isAdmin());
 }
 function setCurrentStyleCollections(r,collections,group){
   collections=(collections||[]).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
@@ -4507,7 +4498,7 @@ function collectionMetaByRef(ref){
 }
 function collectionDisplayName(ref,meta){
   meta=meta||collectionMetaByRef(ref)||{};
-  return (meta.name||collectionNameFromStoreKey(ref)||ref||'').trim();
+  return CollectionsDomain.displayName(ref,meta,collectionScopeKey());
 }
 function collectionCreatorEmail(meta){
   meta=meta||{};
@@ -4525,18 +4516,11 @@ function isOwnCollectionMeta(meta){
 }
 function collectionCreatedByCurrentUser(meta){
   meta=meta||{};
-  if(!effectiveUserId()&&!effectiveUserEmail())return false;
-  if(meta.created_by)return meta.created_by===effectiveUserId();
-  var email=collectionCreatorEmail(meta);
-  return !!(email&&effectiveUserEmail()&&normCompanyName(email)===normCompanyName(effectiveUserEmail()));
+  return CollectionsDomain.createdByUser(meta,effectiveUserId(),effectiveUserEmail(),collectionCreatorEmail(meta),normCompanyName);
 }
 function collectionOwnedByActiveCompany(meta){
   meta=meta||{};
-  if(adminBypassActive())return true;
-  var company=meta.owner_company||meta.company||'',type=meta.owner_type||activeCompanyType()||'Brand';
-  if(!company||normCompanyName(company)!==normCompanyName(activeCompanyName()))return false;
-  if(String(type)!==String(activeCompanyType()||'Brand'))return false;
-  return true;
+  return CollectionsDomain.ownedByCompany(meta,{adminBypass:adminBypassActive(),activeCompanyName:activeCompanyName(),activeCompanyType:activeCompanyType()||'Brand'},normCompanyName);
 }
 function canDeleteCollectionMeta(meta){
   meta=meta||{};
@@ -4556,36 +4540,16 @@ function selectedRowsCanDelete(ids){
   return selectedRowsByIds(ids).every(canDeleteStyle);
 }
 function collectionScopeKeyFromParts(type,company,group){
-  type=String(type||'Brand').toLowerCase();
-  var key=type+':'+normCompanyName(company||'');
-  group=normCompanyName(group||'');
-  return group?key+':'+group:key;
+  return CollectionsDomain.scopeKeyFromParts(type,company,group,normCompanyName);
 }
 function collectionScopePartsFromKey(key){
-  var parts=String(key||'').split(':'),type=parts[0]||'',company=parts[1]||'',group=parts.slice(2).join(':');
-  return {type:type,company:company,group:group};
+  return CollectionsDomain.scopePartsFromKey(key);
 }
 function brandCollectionMapHasNameForMeta(map,meta,name){
-  map=map||{};meta=meta||{};
-  var type=String(meta.owner_type||'Brand').toLowerCase(),company=normCompanyName(meta.owner_company||meta.company||''),group=normCompanyName(meta.owner_group||meta.group||''),exact=collectionScopeKeyFromParts(type,company,group);
-  if((map[exact]||[]).indexOf(name)>=0)return true;
-  return Object.keys(map).some(function(k){
-    var cols=map[k]||[];
-    if(cols.indexOf(name)<0)return false;
-    var p=collectionScopePartsFromKey(k);
-    if(p.type!==type||p.company!==company)return false;
-    if(p.group===group)return true;
-    return !!(group&&!p.group);
-  });
+  return CollectionsDomain.brandMapHasNameForMeta(map,meta,name,normCompanyName);
 }
 function assignmentMatchesCollectionMeta(a,meta,name){
-  if(!a||!meta)return false;
-  if(String(a.collection_name||'').trim().toLowerCase()!==String(name||'').trim().toLowerCase())return false;
-  var type=String(meta.owner_type||'Brand'),company=normCompanyName(meta.owner_company||meta.company||''),group=normCompanyName(meta.owner_group||meta.group||'');
-  if(String(a.owner_type||'Brand')!==type)return false;
-  if(normCompanyName(a.owner_company||'')!==company)return false;
-  var ag=normCompanyName(a.owner_group||'');
-  return ag===group||!!(group&&!ag);
+  return CollectionsDomain.assignmentMatchesMeta(a,meta,name,normCompanyName);
 }
 function companyCollectionsList(companyName,type){
   companyName=companyName||activeCompanyName();
@@ -5512,13 +5476,7 @@ function filteredCollectionRows(name){
   return collectionRows(name).filter(function(r){return collectionRowMatchesSearch(r,q);});
 }
 function collectionSummary(rows){
-  var units=0,imu=0,cnt=0;
-  rows.forEach(function(r){
-    units+=parseFloat(r.units)||0;
-    var c=cm(r);
-    if(isFinite(c.imu)){imu+=c.imu;cnt++;}
-  });
-  return {units:units,imu:cnt?imu/cnt:0,count:rows.length};
+  return CollectionsDomain.summary(rows,cm);
 }
 function collectionsFilterHtml(){
   var years=collectionFilterYears();
