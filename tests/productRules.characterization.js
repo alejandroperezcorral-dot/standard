@@ -35,10 +35,6 @@ function makeCollectionRepo() {
       calls.push({ op: 'upsertStyleAssignment', row: Object.assign({}, row) });
       return Promise.resolve({ error: null });
     },
-    deleteOtherStyleAssignments(scope, rowId, collectionName) {
-      calls.push({ op: 'deleteOtherStyleAssignments', scope: Object.assign({}, scope), rowId, collectionName });
-      return Promise.resolve({ error: null });
-    },
     deleteStyleAssignment(scope, rowId, collectionName) {
       calls.push({ op: 'deleteStyleAssignment', scope: Object.assign({}, scope), rowId, collectionName });
       return Promise.resolve({ error: null });
@@ -144,11 +140,32 @@ function makeCollectionRepo() {
       authUser: { id: 'brand-a', email: 'buyer@gloria-jeans.com' }
     }
   );
-  knownConflict(
-    'COLLECTION_ADD_REMOVES_OTHER_ASSIGNMENTS',
+  assert.strictEqual(
     repo.calls.some(call => call.op === 'deleteOtherStyleAssignments'),
-    'Adding a style to one collection currently deletes other assignments in the same scope.'
+    false,
+    'Adding a style to one collection must not delete other collection assignments'
   );
+
+  const duplicateRepo = makeCollectionRepo();
+  const duplicateMessages = [];
+  const duplicate = await CollectionsDomain.persistScopedAssignment(
+    supplierStyle,
+    'Collection B',
+    'add',
+    {
+      repository: duplicateRepo,
+      isLoggedIn: () => true,
+      collectionMetaByRef: name => ({ name, owner_company: 'Gloria Jeans', owner_group: 'Boys 13+', owner_type: 'Brand' }),
+      collectionDisplayName: (name, meta) => meta.name || name,
+      collectionScopeInfo: group => ({ owner_company: 'Gloria Jeans', owner_group: group || '', owner_type: 'Brand' }),
+      authUser: { id: 'brand-a', email: 'buyer@gloria-jeans.com' },
+      assignments: [{ row_id: 123, owner_company: 'Gloria Jeans', owner_group: 'Boys 13+', owner_type: 'Brand', collection_name: 'Collection B' }],
+      onDuplicateAssignment: message => duplicateMessages.push(message)
+    }
+  );
+  assert.strictEqual(duplicate.duplicate, true, 'Duplicate add must be returned as a safe no-op');
+  assert.deepStrictEqual(duplicateRepo.calls, [], 'Duplicate add must not write to the repository');
+  assert.deepStrictEqual(duplicateMessages, ['This style is already in this collection.']);
 
   assert(
     !fs.readFileSync('index.html', 'utf8').includes('function figma') &&

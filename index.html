@@ -4195,7 +4195,7 @@ async function persistScopedCollection(name,meta){
   return CollectionsDomain.persistScopedCollection(name,meta,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER,isCompanyAdmin:isCompanyAdmin,missingColumnError:missingColumnError});
 }
 async function persistScopedAssignment(r,name,action){
-  return CollectionsDomain.persistScopedAssignment(r,name,action,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionMetaByRef:collectionMetaByRef,collectionDisplayName:collectionDisplayName,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER});
+  return CollectionsDomain.persistScopedAssignment(r,name,action,{repository:CollectionsDomain.createRepository(sb),isLoggedIn:isLoggedIn,collectionMetaByRef:collectionMetaByRef,collectionDisplayName:collectionDisplayName,collectionScopeInfo:collectionScopeInfo,authUser:AUTH_USER,assignments:CollectionsDomain.state.getAssignments(),assignmentAlreadyExists:function(row){return CollectionsDomain.state.hasAssignment(function(x){return assignmentStateSameCollection(x,row);});},onDuplicateAssignment:function(message){toast(message,'info');}});
 }
 function assignmentStateRowForStyleCollection(r,name,meta){
   meta=meta||{};
@@ -4539,20 +4539,25 @@ async function addStyleToCollection(r,name){
   rememberShowroomCollectionWithMeta(collectionName,meta);
   var previous=currentStyleCollections(r),before=previous.join(', ');
   var group=Object.prototype.hasOwnProperty.call(meta,'owner_group')?meta.owner_group:meta.group;
+  var assignment=assignmentStateRowForStyleCollection(r,name,meta);
+  if(CollectionsDomain.state.hasAssignment(function(x){return assignmentStateSameCollection(x,assignment);})){
+    toast('This style is already in this collection.','info');
+    return false;
+  }
+  var persisted;
   try{
     await persistScopedCollection(collectionName,meta);
-    await persistScopedAssignment(r,name,'add');
+    persisted=await persistScopedAssignment(r,name,'add');
   }catch(e){
     console.error('Collection assignment save failed:',e);
     toast('Error saving collection: '+(e.message||JSON.stringify(e)),'err');
     return false;
   }
-  var assignment=assignmentStateRowForStyleCollection(r,name,meta);
-  CollectionsDomain.state.removeAssignmentsWhere(function(x){return assignmentStateSameScope(x,assignment)&&String(x.collection_name||'')!==String(assignment.collection_name||'');});
+  if(persisted&&persisted.duplicate)return false;
   CollectionsDomain.state.addAssignment(assignment,function(x){return assignmentStateSameCollection(x,assignment);});
-  setCurrentStyleCollections(r,[collectionName],group);
-  if(before&&before!==collectionName)addStyleAuditMessage(r,'Collection moved from '+before+' to '+collectionName);
-  else if(!before)addStyleAuditMessage(r,'Collection assigned to '+collectionName);
+  var next=previous.concat([collectionName]).filter(function(x,i,a){return x&&a.indexOf(x)===i;});
+  setCurrentStyleCollections(r,next,group);
+  if(previous.indexOf(collectionName)<0)addStyleAuditMessage(r,'Collection assigned to '+collectionName);
   return true;
 }
 async function removeStyleFromCollection(r,name){

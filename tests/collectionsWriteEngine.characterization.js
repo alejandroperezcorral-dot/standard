@@ -37,10 +37,6 @@ function makeRepo(options) {
       calls.push({ op: 'upsertStyleAssignment', row: Object.assign({}, row) });
       return Promise.resolve({ error: options.upsertAssignmentError || null });
     },
-    deleteOtherStyleAssignments(scope, rowId, collectionName) {
-      calls.push({ op: 'deleteOtherStyleAssignments', scope: Object.assign({}, scope), rowId, collectionName });
-      return Promise.resolve({ error: options.cleanupAssignmentError || null });
-    },
     deleteScopedCollection(scope, name) {
       calls.push({ op: 'deleteScopedCollection', scope: Object.assign({}, scope), name });
       return Promise.resolve({ error: options.deleteScopedCollectionError || null });
@@ -124,9 +120,8 @@ async function rejects(fn, message) {
   {
     const repo = makeRepo();
     await CollectionsDomain.persistScopedAssignment({ id: 44 }, 'Denim', 'add', baseContext(repo));
-    assert.deepStrictEqual(repo.calls.map(c => c.op), ['upsertStyleAssignment', 'deleteOtherStyleAssignments']);
+    assert.deepStrictEqual(repo.calls.map(c => c.op), ['upsertStyleAssignment']);
     assert.strictEqual(repo.calls[0].row.collection_name, 'Denim');
-    assert.strictEqual(repo.calls[1].collectionName, 'Denim');
   }
   {
     const repo = makeRepo();
@@ -144,7 +139,26 @@ async function rejects(fn, message) {
     const repo = makeRepo();
     await CollectionsDomain.persistScopedAssignment({ id: 44 }, 'Denim', 'add', baseContext(repo));
     await CollectionsDomain.persistScopedAssignment({ id: 44 }, 'Denim', 'add', baseContext(repo));
-    assert.deepStrictEqual(repo.calls.map(c => c.op), ['upsertStyleAssignment', 'deleteOtherStyleAssignments', 'upsertStyleAssignment', 'deleteOtherStyleAssignments']);
+    assert.deepStrictEqual(repo.calls.map(c => c.op), ['upsertStyleAssignment', 'upsertStyleAssignment']);
+  }
+  {
+    const repo = makeRepo();
+    const notices = [];
+    const result = await CollectionsDomain.persistScopedAssignment({ id: 44 }, 'Denim', 'add', baseContext(repo, {
+      assignments: [{ row_id: 44, owner_company: 'Gloria Jeans', owner_group: '', owner_type: 'Brand', collection_name: 'Denim' }],
+      onDuplicateAssignment: message => notices.push(message)
+    }));
+    assert.deepStrictEqual(repo.calls, []);
+    assert.strictEqual(result.duplicate, true);
+    assert.deepStrictEqual(notices, ['This style is already in this collection.']);
+  }
+  {
+    const repo = makeRepo();
+    await CollectionsDomain.persistScopedAssignment({ id: 44 }, 'Denim', 'add', baseContext(repo, {
+      assignments: [{ row_id: 44, owner_company: 'Gloria Jeans', owner_group: '', owner_type: 'Brand', collection_name: 'Party' }]
+    }));
+    assert.deepStrictEqual(repo.calls.map(c => c.op), ['upsertStyleAssignment']);
+    assert.strictEqual(repo.calls[0].row.collection_name, 'Denim');
   }
   {
     const repo = makeRepo();
@@ -334,7 +348,7 @@ async function rejects(fn, message) {
     await CollectionsDomain.deleteCompanyCollectionExplicit(null, baseContext(repo));
     assert.deepStrictEqual(repo.calls, []);
   }
-  console.log('collections write engine characterization ok 41');
+  console.log('collections write engine characterization ok 43');
 })().catch(error => {
   console.error(error);
   process.exit(1);

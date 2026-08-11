@@ -28,15 +28,6 @@ function createCollectionRepository(supabase){
       return supabase.from('style_collection_assignments')
         .upsert(row,{onConflict:'row_id,owner_company,owner_group,owner_type,collection_name'});
     },
-    deleteOtherStyleAssignments:function(scope,rowId,collectionName){
-      return supabase.from('style_collection_assignments')
-        .delete()
-        .eq('row_id',rowId)
-        .eq('owner_company',scope.owner_company)
-        .eq('owner_group',scope.owner_group||'')
-        .eq('owner_type',scope.owner_type)
-        .neq('collection_name',collectionName);
-    },
     deleteScopedCollection:function(scope,name){
       return supabase.from('showroom_collections_scoped')
         .delete()

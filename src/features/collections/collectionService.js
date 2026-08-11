@@ -35,6 +35,26 @@ function collectionWriteNow(context){
   context=context||{};
   return (context.now||function(){return new Date().toISOString();})();
 }
+function collectionAssignmentDuplicateMessage(){
+  return 'This style is already in this collection.';
+}
+function collectionAssignmentMatchesRow(assignment,row){
+  if(!assignment||!row)return false;
+  return String(assignment.row_id||'')===String(row.row_id||'')&&
+    String(assignment.owner_company||'')===String(row.owner_company||'')&&
+    String(assignment.owner_group||'')===String(row.owner_group||'')&&
+    String(assignment.owner_type||'Brand')===String(row.owner_type||'Brand')&&
+    String(assignment.collection_name||'')===String(row.collection_name||'');
+}
+function collectionAssignmentAlreadyExists(row,context){
+  context=context||{};
+  if(context.assignmentAlreadyExists&&context.assignmentAlreadyExists(row))return true;
+  if(Array.isArray(context.assignments))return context.assignments.some(function(assignment){return collectionAssignmentMatchesRow(assignment,row);});
+  return false;
+}
+function collectionDuplicateWriteResult(row){
+  return {duplicate:true,message:collectionAssignmentDuplicateMessage(),row:row};
+}
 async function persistScopedCollectionWrite(name,meta,context){
   context=context||{};meta=meta||{};
   if(!context.isLoggedIn||!context.isLoggedIn())return;
@@ -85,10 +105,13 @@ async function persistScopedAssignmentWrite(style,name,action,context){
   }
   var authUser=context.authUser||{};
   var row={row_id:style.id,owner_company:scope.owner_company,owner_group:scope.owner_group||'',owner_type:scope.owner_type,collection_name:collectionName,created_by:authUser?authUser.id:null};
+  if(collectionAssignmentAlreadyExists(row,context)){
+    if(context.onDuplicateAssignment)context.onDuplicateAssignment(collectionAssignmentDuplicateMessage(),row,style);
+    return collectionDuplicateWriteResult(row);
+  }
   var u=await repo.upsertStyleAssignment(row);
   if(u.error)throw u.error;
-  var cleanup=await repo.deleteOtherStyleAssignments(scope,style.id,collectionName);
-  if(cleanup.error)throw cleanup.error;
+  return {duplicate:false,row:row};
 }
 function collectionWriteScopeFromMeta(meta,context){
   context=context||{};meta=meta||{};
