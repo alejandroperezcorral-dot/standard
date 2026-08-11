@@ -1308,11 +1308,11 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   <main class="pin-main">
     <div class="showroom-head">
       <div class="showroom-tools">
-        <input type="text" id="sh-q" placeholder="Buscar" oninput="EXPLORE_SEARCH=this.value||'';renderShowroom()">
-        <select id="sh-supp" onchange="renderShowroom()"><option value="">Supplier</option></select>
-        <select id="sh-season" onchange="renderShowroom()"><option value="">Season</option></select>
-        <select id="sh-dept" onchange="renderShowroom()"><option value="">Dept.</option></select>
-        <select id="sh-status" onchange="renderShowroom()"><option value="">Status</option></select>
+        <input type="text" id="sh-q" placeholder="Buscar" oninput="ExploreDomain.state.setSearch(this.value||'');renderShowroom()">
+        <select id="sh-supp" onchange="ExploreDomain.state.setFilter('supplier',this.value);renderShowroom()"><option value="">Supplier</option></select>
+        <select id="sh-season" onchange="ExploreDomain.state.setFilter('season',this.value);renderShowroom()"><option value="">Season</option></select>
+        <select id="sh-dept" onchange="ExploreDomain.state.setFilter('department',this.value);renderShowroom()"><option value="">Dept.</option></select>
+        <select id="sh-status" onchange="ExploreDomain.state.setFilter('status',this.value);renderShowroom()"><option value="">Status</option></select>
         <button class="pin-camera" onclick="requireAuthAction()" title="Visual search">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L8 6H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3l-1.5-2z"/><circle cx="12" cy="12.5" r="3.5"/><path d="M4 4v3M4 4h3M20 4v3M20 4h-3M4 20v-3M4 20h3M20 20v-3M20 20h-3"/></svg>
         </button>
@@ -1842,7 +1842,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_SOURCE='',SHOWROOM_SAVED_ONLY=false,SHOWROOM_COLLECTIONS_VIEW=false,SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,SHOWROOM_FILTER_CAT='',SHOWROOM_FILTER_ORIGIN='',EXPLORE_SEARCH='',COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -4008,11 +4008,9 @@ function showroomExploreAll(){
   SHOWROOM_BOARD_MODE=false;
   SHOWROOM_COLLECTIONS_VIEW=false;
   clearActiveCollection();
-  SHOWROOM_SOURCE='';
-  SHOWROOM_SAVED_ONLY=false;
   ['sh-q','sh-supp','sh-season','sh-dept','sh-status'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
-  SHOWROOM_FILTER_CAT='';SHOWROOM_FILTER_ORIGIN='';
-  EXPLORE_SEARCH='';
+  ExploreDomain.state.resetFilters();
+  SHOWROOM_SAVED_ONLY=false;
   var g=document.getElementById('pin-global-search');if(g)g.value='';
   if(activePageName&&activePageName()!=='showroom'){goTab('showroom');return;}
   renderShowroom();
@@ -4024,6 +4022,7 @@ function showroomSupplierAlerts(){
   SHOWROOM_SOURCE='SUPPLIER';
   SHOWROOM_SAVED_ONLY=false;
   SHOWROOM_FILTER_CAT='';SHOWROOM_FILTER_ORIGIN='';
+  ExploreDomain.state.setFilter('status','PENDING');
   var e=document.getElementById('sh-status');if(e)e.value='PENDING';
   var g=document.getElementById('pin-global-search');if(g)g.value='';
   renderShowroom();
@@ -4042,6 +4041,7 @@ function openShowroomChatLink(){
 function setShowroomStatus(s){
   SHOWROOM_COLLECTIONS_VIEW=false;
   if(!SHOWROOM_SOURCE)SHOWROOM_SOURCE='SUPPLIER';
+  ExploreDomain.state.setFilter('status',s||'');
   var e=document.getElementById('sh-status');if(e)e.value=s||'';
   renderShowroom();
 }
@@ -5007,10 +5007,12 @@ function setShowroomCollectionFilter(name){
   syncAppRoute('showroom');
 }
 function setShowroomDeptFilter(v){
+  ExploreDomain.state.setFilter('department',v||'');
   var e=document.getElementById('sh-dept');if(e)e.value=v||'';
   renderShowroom();
 }
 function setShowroomSupplierFilter(v){
+  ExploreDomain.state.setFilter('supplier',v||'');
   var e=document.getElementById('sh-supp');if(e)e.value=v||'';
   renderShowroom();
 }
@@ -5043,7 +5045,7 @@ function showroomAdvancedFiltersHtml(rows){
     vals.forEach(function(v){h+='<option value="'+escHtml(v)+'"'+(v===cur?' selected':'')+'>'+escHtml(v)+'</option>';});
     return h;
   }
-  var dept=gV('sh-dept'),supp=gV('sh-supp'),cat=SHOWROOM_FILTER_CAT,origin=SHOWROOM_FILTER_ORIGIN;
+  var exploreFilters=ExploreDomain.state.getFilters(),dept=exploreFilters.department,supp=exploreFilters.supplier,cat=exploreFilters.category,origin=exploreFilters.origin;
   var h='<div class="explore-filter-panel">';
   if(SHOWROOM_ADVANCED_OPEN){
     h+='<div class="explore-advanced-filters">';
@@ -5059,11 +5061,9 @@ function showroomAdvancedFiltersHtml(rows){
 }
 function clearShowroomFilters(){
   ['sh-q','sh-supp','sh-season','sh-dept','sh-status'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
-  EXPLORE_SEARCH='';
-  SHOWROOM_FILTER_CAT='';SHOWROOM_FILTER_ORIGIN='';
   SHOWROOM_COLLECTIONS_VIEW=false;
   clearActiveCollection();
-  SHOWROOM_SOURCE='';
+  ExploreDomain.state.resetFilters();
   SHOWROOM_SAVED_ONLY=false;
   var g=document.getElementById('pin-global-search');if(g)g.value='';
   renderShowroom();
@@ -5989,9 +5989,10 @@ function closeSupplierProfile(){
 }
 function openSupplierPortfolio(name){
   SHOWROOM_COLLECTIONS_VIEW=false;clearActiveCollection();SHOWROOM_SAVED_ONLY=false;SHOWROOM_SOURCE='SUPPLIER';
+  ExploreDomain.state.setFilter('supplier',name||'');
   var e=document.getElementById('sh-supp');if(e)e.value=name;
   goTab('showroom');
-  setTimeout(function(){var s=document.getElementById('sh-supp');if(s){s.value=name;renderShowroom();}},60);
+  setTimeout(function(){var s=document.getElementById('sh-supp');if(s){s.value=name;ExploreDomain.state.setFilter('supplier',name||'');renderShowroom();}},60);
 }
 async function toggleSupplierExploreAccess(supplier,enabled){
   if(!requireAuthAction())return;
@@ -6470,26 +6471,17 @@ function renderCollectionsBoard(){
   renderShowroomBulkbar();
 }
 function showroomRows(){
+  var exploreState=ExploreDomain.state.snapshot({
+    activeCollection:activeCollectionRef(),
+    savedIds:savedShowroomIds(),
+    loggedIn:isLoggedIn(),
+    hasAuthProfile:!!AUTH_PROFILE,
+    adminBypass:isAdmin(),
+    adminViewActive:!!_adminViewProfile
+  });
   return ExploreDomain.visibleRows({
     rows:ROWS,
-    state:ExploreDomain.createReadState({
-      search:EXPLORE_SEARCH||gV('sh-q')||'',
-      supplier:gV('sh-supp'),
-      season:gV('sh-season'),
-      department:gV('sh-dept'),
-      status:gV('sh-status'),
-      category:SHOWROOM_FILTER_CAT,
-      origin:SHOWROOM_FILTER_ORIGIN,
-      source:SHOWROOM_SOURCE,
-      collectionsView:SHOWROOM_COLLECTIONS_VIEW,
-      activeCollection:activeCollectionRef(),
-      savedOnly:SHOWROOM_SAVED_ONLY,
-      savedIds:savedShowroomIds(),
-      loggedIn:isLoggedIn(),
-      hasAuthProfile:!!AUTH_PROFILE,
-      adminBypass:isAdmin(),
-      adminViewActive:!!_adminViewProfile
-    }),
+    state:exploreState,
     context:{
       rowStatus:rowStatus,
       sourceLabel:sourceLabel,
@@ -6510,7 +6502,8 @@ function savedStarSvg(){
 function renderShowroom(){
   var body=document.getElementById('showroom-body');if(!body)return;
   SHOWROOM_VIEW='grid';
-  var inlineSearch=document.getElementById('sh-q');if(inlineSearch&&!SHOWROOM_COLLECTIONS_VIEW)inlineSearch.value=EXPLORE_SEARCH||'';
+  var exploreFilters=ExploreDomain.state.getFilters();
+  var inlineSearch=document.getElementById('sh-q');if(inlineSearch&&!SHOWROOM_COLLECTIONS_VIEW)inlineSearch.value=ExploreDomain.state.getSearch()||'';
   renderShowroomChips();
   var av=document.getElementById('pin-avatar');
   if(av)av.textContent=AUTH_USER&&AUTH_USER.email?(AUTH_USER.email.charAt(0).toUpperCase()):'A';
@@ -6524,7 +6517,7 @@ function renderShowroom(){
     vals.forEach(function(v){h+='<option'+(v===cur?' selected':'')+'>'+escHtml(v)+'</option>';});
     e.innerHTML=h;if(cur&&vals.indexOf(cur)>=0)e.value=cur;
   }
-  var base=ROWS.slice(),fs=gV('sh-supp'),fse=gV('sh-season'),fd=gV('sh-dept'),fst=gV('sh-status');
+  var base=ROWS.slice(),fs=exploreFilters.supplier,fse=exploreFilters.season,fd=exploreFilters.department,fst=exploreFilters.status;
   setDrop('sh-supp','Supplier',uniq(base,'supplier'),fs);
   setDrop('sh-season','Season',uniq(base,'temporada'),fse);
   setDrop('sh-dept','Dept.',uniq(base,'dept'),fd);
@@ -8014,8 +8007,8 @@ function pinGlobalSearch(v){
   if(name==='suppliers'){SUPPLIERS_SEARCH=v||'';renderSuppliersPage();return;}
   if(name==='showroom'&&SHOWROOM_COLLECTIONS_VIEW){COLLECTION_SEARCH=v||'';renderShowroom();return;}
   if(name==='showroom'){
-    EXPLORE_SEARCH=v||'';
-    var se=document.getElementById('sh-q');if(se)se.value=EXPLORE_SEARCH;
+    ExploreDomain.state.setSearch(v||'');
+    var se=document.getElementById('sh-q');if(se)se.value=ExploreDomain.state.getSearch();
     renderShowroom();
     return;
   }
@@ -8031,7 +8024,7 @@ function openStyleSidebar(){
   return openCreateModelModal('BUYER');
 }
 function openBoardView(){SHOWROOM_BOARD_MODE=true;SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_SOURCE='SUPPLIER';SHOWROOM_SAVED_ONLY=false;goTab('showroom');}
-function openSupplierShowroomArea(){SHOWROOM_BOARD_MODE=false;SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_SOURCE='SUPPLIER';SHOWROOM_SAVED_ONLY=false;var e=document.getElementById('sh-status');if(e)e.value='';goTab('showroom');}
+function openSupplierShowroomArea(){SHOWROOM_BOARD_MODE=false;SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_SOURCE='SUPPLIER';SHOWROOM_SAVED_ONLY=false;ExploreDomain.state.setFilter('status','');var e=document.getElementById('sh-status');if(e)e.value='';goTab('showroom');}
 function openNegotiationList(tab){
   if(!canUseBuyingList()){toast('Suppliers use Explore, Collections and Chats only','warn');showroomExploreAll();return;}
   goTab(tab==='closed'?'closed':'neg');
