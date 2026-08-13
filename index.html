@@ -3784,27 +3784,25 @@ function dutyFor(org,cat){
   }
   return best?{fixed:best.fixed,pct:best.pct}:{fixed:0,pct:0.13};
 }
+function costModel001RuntimeConfiguration(){
+  return {
+    assumptions:{
+      insuranceRate:P.ins,
+      grossWeightUplift:P.nw2gw,
+      rubExchangeRate:P.rub,
+      eurExchangeRate:P.eur,
+      vatRate:P.tax,
+      targetImu:0.72,
+      fallbackDutyRate:0.13,
+      defaultOrigin:'BANGLADESH',
+      defaultTransportMode:'SEA-TRUCK'
+    },
+    freightRoutes:FR,
+    dutyRows:DUTIES
+  };
+}
 function cm(r){
-  var fob=r.fob_closed||r.fob3||r.fob2||r.fob1||0;
-  var pvp=r.pvp_rub||0;
-  var fr=frCU(r.origin||'BANGLADESH',r.transport||'SEA-TRUCK',r.units||1,r.weight||0,r.cat||'');
-  var du=dutyFor(r.origin||'BANGLADESH',r.cat||'');
-  // Russia tariff: apply whichever is higher Ã¢â‚¬â€ fixed EUR/kg or % of FOB (same as Excel MAX formula)
-  var fixedCust=r.weight?du.fixed*P.eur*r.weight:0;
-  var pctCust=fob*du.pct;
-  var cust=Math.max(fixedCust,pctCust);
-  var ldp=fob*(1+P.ins)+fr.cu+cust;  // FOB*1.003 insurance + transport + MAX(fixed,pct) customs
-  var pU=pvp/((1+(P.tax||0.2))*P.rub);  // net-of-tax price in USD, matches Excel =(PVP/1.2)/RUB
-  var imu=pU>0?(pU-ldp)/pU:0;
-  var mu=(imu<1&&imu>-10)?imu/(1-imu):0;
-  var tgt=r.target_imu||0.72;
-  var gap=imu-tgt;
-  // fobT: invert LDP formula with MAX customs Ã¢â‚¬â€ check which branch dominates
-  var fobT_fixed=pU>0?(pU*(1-tgt)-fr.cu-fixedCust)/(1+P.ins):0;
-  var fobT_pct=pU>0?(pU*(1-tgt)-fr.cu)/(1+P.ins+du.pct):0;
-  var fobT=(fixedCust>=du.pct*Math.max(fobT_fixed,0))?fobT_fixed:fobT_pct;
-  var custPct=fob>0?cust/fob:0;
-  return{fob:fob,ldp:ldp,pU:pU,imu:imu,mu:mu,tgt:tgt,gap:gap,fobT:fobT,cu:fr.cu,cust:cust,custPct:custPct,days:fr.days};
+  return CostingDomain.evaluateModel001(r,costModel001RuntimeConfiguration());
 }
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ HOD/FSD Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬

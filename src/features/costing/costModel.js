@@ -119,7 +119,9 @@ function costModel001DutyFor(origin,category,configuration){
 }
 function evaluateCostModel001(input,resolvedConfiguration){
   input=input||{};
-  var configuration=resolveCostModelConfiguration({model:resolvedConfiguration||{}});
+  var configuration=resolvedConfiguration&&resolvedConfiguration.assumptions
+    ?resolvedConfiguration
+    :resolveCostModelConfiguration({model:resolvedConfiguration||{}});
   var assumptions=configuration.assumptions||{};
   var fob=input.fob_closed||input.fob3||input.fob2||input.fob1||input.fob||0;
   var pvp=input.pvp_rub||0;
