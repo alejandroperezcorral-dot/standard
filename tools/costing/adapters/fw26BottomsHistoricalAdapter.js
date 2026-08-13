@@ -7,6 +7,7 @@ const FW26_BOTTOMS_HISTORICAL_SOURCE = Object.freeze({
   sourceName: 'FW26 QUOTATION FILE - BOTTOMS.xlsb',
   sourceType: HistoricalSourceClassification.PARTIAL_INDEPENDENT_REFERENCE,
   sourceDate: '2026-06-11',
+  period: { season: 'FW26' },
   referenceMethod: 'Excel PLANIFICACION formulas using Control panel GJ and Duty Calculator GJ',
   currencyContext: 'FOB/LDP USD; PVP RUB VAT-inclusive; USD/RUB 87; EUR/USD 1.16',
   notes: 'Read-only exported validation copy. Historical source has LDP, IMU, freight, duty and transit outputs but no independent markup or target FOB output.'

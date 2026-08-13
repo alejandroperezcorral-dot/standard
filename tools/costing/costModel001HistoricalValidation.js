@@ -231,6 +231,9 @@ function validateCostModel001(records, options) {
 
   const tolerances = Object.assign({}, DEFAULT_COST_MODEL_001_TOLERANCES, options.tolerances || {});
   const configuration = options.configuration || costingDomain.createModel001Configuration();
+  const configurationResolver = typeof options.configurationResolver === 'function'
+    ? options.configurationResolver
+    : null;
   const fieldMap = options.fieldMap
     ? Object.assign({}, options.fieldMap)
     : Object.assign({}, DEFAULT_FIELD_MAP);
@@ -239,7 +242,10 @@ function validateCostModel001(records, options) {
 
   (records || []).forEach((record) => {
     const normalized = createHistoricalValidationRecord(record);
-    const modelResult = costingDomain.evaluateModel001(normalized.inputs, configuration);
+    const recordConfiguration = configurationResolver
+      ? configurationResolver(normalized, configuration)
+      : configuration;
+    const modelResult = costingDomain.evaluateModel001(normalized.inputs, recordConfiguration);
     const fields = [];
 
     Object.keys(fieldMap).forEach((fieldName) => {

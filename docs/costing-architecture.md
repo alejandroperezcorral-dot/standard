@@ -151,9 +151,11 @@ CURRENT files:
 
 CURRENT status: `CHARACTERIZED`.
 
-NOT IMPLEMENTED YET: historical validation against real approved reference styles.
+CURRENT: partial FW26 historical validation exists for bottoms. It proves the formula structure and the need for versioned origin/category Duty configuration, while two source Duty references remain unavailable.
 
 CURRENT: The pure evaluator is `evaluateCostModel001(input, resolvedConfiguration)`. It has no DOM dependency, no Supabase dependency, no routing dependency, no mutable global state dependency and no side effects.
+
+CURRENT: `resolveCostModelConfiguration` separates formula from configuration. It can apply deterministic time-scoped origin/category duty overrides before the evaluator runs.
 
 CURRENT: `CostModel001Connector` can call the evaluator and map the result into `CostResult`.
 
@@ -229,24 +231,38 @@ Only variables proven by current Model 001 behavior are included.
 
 ## Scopes and Inheritance
 
-CURRENT: Cost Model 001 uses a single global model default.
-
-FUTURE, NOT IMPLEMENTED: configuration should resolve through:
+CURRENT: Cost Model 001 resolves configuration through:
 
 1. model default
-2. department override
-3. category override
-4. origin + category override
-5. time-versioned effective value
-6. optional explicit style override later
+2. time-scoped origin/category duty override
 
-The most specific configured value wins.
+The first implemented time key is `season`, because the FW26 historical workbook proves an FW26 configuration but does not prove exact effective-date boundaries.
+
+FUTURE, NOT IMPLEMENTED: configuration may later resolve through company, department, category and explicit style scopes when evidence justifies them. Department is `FUTURE / EVIDENCE PENDING`.
 
 Departments and categories must come from company configuration/domain data. They must not be hardcoded into the costing engine.
 
 Do not duplicate a full model per department/category. Use base configuration plus scoped overrides.
 
 Historical FW26 bottoms duty validation provides evidence that duty configuration needs origin/category and time-versioned override support. The repeated differences were in `VIETNAM / Pants Commercial` and `BANGLADESH / Jeans Color`; the formula structure itself remained the same max fixed-vs-percentage duty method.
+
+Architecture:
+
+`Cost Model -> Configuration Version -> Scope Resolution -> Effective Assumptions -> Evaluator`
+
+Model version and configuration version are different:
+
+- model version changes when formula/business logic changes;
+- configuration version changes when assumptions change while formula stays stable.
+
+Future explanation target:
+
+- Cost Model: `Cost Model 001`
+- Formula version: `1`
+- Configuration: `FW26`
+- Scope: `Vietnam / Pants Commercial`
+- Duty method: `MAX_FIXED_VS_PERCENT`
+- Source: historical company methodology
 
 ## Additional Cost Components
 
@@ -275,15 +291,16 @@ Do not implement arbitrary formulas yet.
 
 ## Versioning Safety
 
-FUTURE, NOT IMPLEMENTED: changing an active model configuration must not silently rewrite historical commercial decisions.
+CURRENT DESIGN: changing an active model configuration must not silently rewrite historical commercial decisions.
 
 Admin edits should create a new version:
 
-- Cost Model 001 v1
+- Cost Model 001 formula v1
+- Configuration `CURRENT`
 - Admin changes values
-- Cost Model 001 v2
+- Configuration `CURRENT-2` or another explicit version
 
-Future calculations use v2. Historical calculations can retain model id and version for explainability.
+Future calculations use the newly activated configuration. Historical calculations can retain model id, formula version and configuration version for explainability.
 
 ## Model Evolution
 
@@ -347,10 +364,24 @@ DO NOT MIGRATE YET.
 Possible future tables:
 
 - `cost_models`: stable model identity and owner.
-- `cost_model_versions`: versioned assumptions and status.
+- `cost_model_versions`: formula/business-logic versions.
+- `cost_config_versions`: named assumption sets such as `CURRENT` or `FW26`, with status, owner, active flag and immutable historical versions.
+- `cost_config_overrides`: scoped assumptions for a configuration version, including period, scope dimensions and values.
 - `company_costing_settings`: active model per company or group.
 - `style_cost_estimates`: latest and historical costing outputs by style.
 - `cost_model_inputs`: optional snapshot of inputs used for reproducible validation.
+
+Minimum concepts:
+
+- model identity
+- formula version
+- configuration version
+- company ownership
+- effective period or season
+- scope dimensions such as origin/category
+- values such as fixed duty and duty percent
+- status and activation
+- auditability and immutable validated history
 
 Minimum viable DB design should be proposed only after Model 001 has real reference data and authorization rules are settled.
 

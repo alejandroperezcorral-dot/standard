@@ -4,6 +4,8 @@ var CostModel001Status={
 };
 var COST_MODEL_001_ID='cost-model-001';
 var COST_MODEL_001_VERSION=1;
+var COST_MODEL_001_CONFIGURATION_CURRENT='CURRENT';
+var COST_MODEL_001_CONFIGURATION_FW26='FW26';
 var COST_MODEL_001_DEFAULT_ASSUMPTIONS={
   insuranceRate:0.003,
   grossWeightUplift:0.11,
@@ -15,6 +17,29 @@ var COST_MODEL_001_DEFAULT_ASSUMPTIONS={
   defaultOrigin:'BANGLADESH',
   defaultTransportMode:'SEA-TRUCK'
 };
+var COST_MODEL_001_FW26_DUTY_OVERRIDES=[
+  {
+    id:'fw26-vietnam-pants-commercial-duty',
+    scope:{origin:'VIETNAM',category:'Pants Commercial'},
+    period:{season:COST_MODEL_001_CONFIGURATION_FW26},
+    values:{fixedDuty:2.2,dutyPercent:0},
+    source:'FW26 Duty Calculator GJ row 300'
+  },
+  {
+    id:'fw26-vietnam-jct-nondenim-duty',
+    scope:{origin:'VIETNAM',category:'Jct Nondenim'},
+    period:{season:COST_MODEL_001_CONFIGURATION_FW26},
+    values:{fixedDuty:2.25,dutyPercent:0.1},
+    source:'FW26 Duty Calculator GJ row 290'
+  },
+  {
+    id:'fw26-bangladesh-jeans-color-duty',
+    scope:{origin:'BANGLADESH',category:'Jeans Color'},
+    period:{season:COST_MODEL_001_CONFIGURATION_FW26},
+    values:{fixedDuty:1.9,dutyPercent:0.1},
+    source:'FW26 Duty Calculator GJ row 67'
+  }
+];
 var COST_MODEL_001_VARIABLES=[
   {key:'insuranceRate',label:'Insurance',description:'FOB insurance uplift applied before landed cost.',type:'percentage',unit:'%',defaultValue:0.003,editable:true,scope:'model-default',category:'GENERAL',validation:{min:0}},
   {key:'grossWeightUplift',label:'Gross Weight Uplift',description:'Net-to-gross weight uplift used for units-per-container calculations.',type:'percentage',unit:'%',defaultValue:0.11,editable:true,scope:'model-default',category:'LOGISTICS',validation:{min:0}},
@@ -42,17 +67,32 @@ function cloneCostModelValue(value){
   if(value==null||typeof value!=='object')return value;
   return JSON.parse(JSON.stringify(value));
 }
+function normalizeCostModelScopeText(value){
+  return value==null?'':String(value).trim();
+}
+function normalizeCostModelOrigin(value){
+  return normalizeCostModelScopeText(value).toUpperCase();
+}
+function normalizeCostModelSeason(value){
+  return normalizeCostModelScopeText(value).toUpperCase();
+}
+function createCostModel001Fw26DutyOverrides(){
+  return cloneCostModelValue(COST_MODEL_001_FW26_DUTY_OVERRIDES);
+}
 function createCostModel001Configuration(overrides){
   overrides=overrides||{};
   return {
     id:COST_MODEL_001_ID,
     version:COST_MODEL_001_VERSION,
+    formulaVersion:COST_MODEL_001_VERSION,
+    configurationVersion:overrides.configurationVersion||COST_MODEL_001_CONFIGURATION_CURRENT,
     name:'Cost Model 001',
     status:CostModel001Status.CHARACTERIZED,
     source:CostingSourceType.STDTEX_COST_MODEL,
     assumptions:Object.assign({},COST_MODEL_001_DEFAULT_ASSUMPTIONS,overrides.assumptions||{}),
     freightRoutes:cloneCostModelValue(overrides.freightRoutes||{}),
     dutyRows:cloneCostModelValue(overrides.dutyRows||[]),
+    dutyOverrides:cloneCostModelValue(overrides.dutyOverrides||[]),
     fixedCosts:cloneCostModelValue(overrides.fixedCosts||{}),
     percentageCosts:cloneCostModelValue(overrides.percentageCosts||{}),
     transit:cloneCostModelValue(overrides.transit||{}),
@@ -63,19 +103,85 @@ function createCostModel001Configuration(overrides){
         :copy.defaultValue;
       return copy;
     }),
-    scopes:cloneCostModelValue(overrides.scopes||{})
+    scopes:cloneCostModelValue(overrides.scopes||{}),
+    resolutionTrace:cloneCostModelValue(overrides.resolutionTrace||[])
   };
+}
+function costModelPeriodMatches(overridePeriod,context){
+  overridePeriod=overridePeriod||{};
+  context=context||{};
+  if(overridePeriod.season){
+    return normalizeCostModelSeason(context.season)===normalizeCostModelSeason(overridePeriod.season);
+  }
+  return true;
+}
+function costModelDutyOverrideMatches(override,context){
+  override=override||{};
+  context=context||{};
+  var scope=override.scope||{};
+  if(scope.origin&&normalizeCostModelOrigin(context.origin)!==normalizeCostModelOrigin(scope.origin))return false;
+  if(scope.category&&normalizeCostModelScopeText(context.category)!==normalizeCostModelScopeText(scope.category))return false;
+  return costModelPeriodMatches(override.period,context);
+}
+function applyCostModel001DutyOverride(dutyRows,override){
+  var rows=cloneCostModelValue(dutyRows||[]);
+  var scope=override.scope||{};
+  var values=override.values||{};
+  var matched=false;
+  for(var i=0;i<rows.length;i++){
+    var row=rows[i];
+    if(normalizeCostModelOrigin(row.country)===normalizeCostModelOrigin(scope.origin)&&normalizeCostModelScopeText(row.cat)===normalizeCostModelScopeText(scope.category)){
+      if(Object.prototype.hasOwnProperty.call(values,'fixedDuty'))row.fixed=values.fixedDuty;
+      if(Object.prototype.hasOwnProperty.call(values,'dutyPercent'))row.pct=values.dutyPercent;
+      matched=true;
+      break;
+    }
+  }
+  if(!matched){
+    rows.push({
+      country:scope.origin,
+      cat:scope.category,
+      fixed:Object.prototype.hasOwnProperty.call(values,'fixedDuty')?values.fixedDuty:0,
+      pct:Object.prototype.hasOwnProperty.call(values,'dutyPercent')?values.dutyPercent:0,
+      load_norm:values.loadNorm||0
+    });
+  }
+  return rows;
 }
 function resolveCostModelConfiguration(input){
   input=input||{};
   var model=input.model||createCostModel001Configuration(input);
+  var context=input.context||input.calculationContext||{};
   var resolved=createCostModel001Configuration(model);
   if(model.assumptions)resolved.assumptions=Object.assign({},COST_MODEL_001_DEFAULT_ASSUMPTIONS,model.assumptions);
   resolved.freightRoutes=cloneCostModelValue(model.freightRoutes||{});
   resolved.dutyRows=cloneCostModelValue(model.dutyRows||[]);
+  resolved.dutyOverrides=cloneCostModelValue(model.dutyOverrides||[]);
   resolved.fixedCosts=cloneCostModelValue(model.fixedCosts||{});
   resolved.percentageCosts=cloneCostModelValue(model.percentageCosts||{});
   resolved.transit=cloneCostModelValue(model.transit||{});
+  resolved.configurationVersion=normalizeCostModelSeason(context.season)===COST_MODEL_001_CONFIGURATION_FW26
+    ?COST_MODEL_001_CONFIGURATION_FW26
+    :model.configurationVersion||COST_MODEL_001_CONFIGURATION_CURRENT;
+  resolved.resolutionTrace=[{
+    step:'MODEL_DEFAULT',
+    configurationVersion:model.configurationVersion||COST_MODEL_001_CONFIGURATION_CURRENT,
+    matched:true
+  }];
+  for(var i=0;i<resolved.dutyOverrides.length;i++){
+    var override=resolved.dutyOverrides[i];
+    if(costModelDutyOverrideMatches(override,context)){
+      resolved.dutyRows=applyCostModel001DutyOverride(resolved.dutyRows,override);
+      resolved.resolutionTrace.push({
+        step:'DUTY_OVERRIDE',
+        id:override.id||null,
+        scope:cloneCostModelValue(override.scope||{}),
+        period:cloneCostModelValue(override.period||{}),
+        source:override.source||null,
+        matched:true
+      });
+    }
+  }
   return resolved;
 }
 function getCostModel001VariableMetadata(){

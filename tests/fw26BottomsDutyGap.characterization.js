@@ -51,11 +51,6 @@ const rows = [
 ];
 
 const records = normalizeFw26BottomsHistoricalRows(rows);
-const historicalDutyOverrides = [
-  { country: 'Vietnam', dept: 'Pants', cat: 'Pants Commercial', fixed: 2.2, pct: 0, load_norm: 10000 },
-  { country: 'Bangladesh', dept: 'Jeans', cat: 'Jeans Color', fixed: 1.9, pct: 0.1, load_norm: 10000 }
-];
-
 const baseConfiguration = CostingDomain.createModel001Configuration({
   assumptions: {
     insuranceRate: 0.003,
@@ -75,17 +70,18 @@ const baseConfiguration = CostingDomain.createModel001Configuration({
   dutyRows: [
     { country: 'Vietnam', dept: 'Pants', cat: 'Pants Commercial', fixed: 0, pct: 0, load_norm: 10000 },
     { country: 'Bangladesh', dept: 'Jeans', cat: 'Jeans Color', fixed: 2.25, pct: 0.1, load_norm: 10000 }
-  ]
-});
-
-const historicalConfiguration = CostingDomain.createModel001Configuration({
-  assumptions: baseConfiguration.assumptions,
-  freightRoutes: baseConfiguration.freightRoutes,
-  dutyRows: historicalDutyOverrides
+  ],
+  dutyOverrides: CostingDomain.createModel001Fw26DutyOverrides()
 });
 
 const baseResults = records.map((record) => CostingDomain.evaluateModel001(record.inputs, baseConfiguration));
-const historicalResults = records.map((record) => CostingDomain.evaluateModel001(record.inputs, historicalConfiguration));
+const historicalResults = records.map((record) => {
+  const configuration = CostingDomain.resolveModelConfiguration({
+    model: baseConfiguration,
+    context: { season: 'FW26', origin: record.inputs.origin, category: record.inputs.category || record.inputs.cat }
+  });
+  return CostingDomain.evaluateModel001(record.inputs, configuration);
+});
 
 assert.ok(Math.abs(baseResults[0].duty - records[0].reference.duty) > 0.01);
 assert.ok(Math.abs(baseResults[1].duty - records[1].reference.duty) > 0.01);

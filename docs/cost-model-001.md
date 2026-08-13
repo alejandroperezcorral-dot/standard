@@ -27,7 +27,7 @@ Cost Model 001 preserves the current behavior instead of correcting or generaliz
 - status: `CHARACTERIZED`
 - source: `STDTEX internal costing model`
 
-Status is not `HISTORICALLY_VALIDATED` yet. The FW26 bottoms workbook provides partial independent historical validation evidence, but duty-driven LDP and IMU mismatches remain to be explained before the model can be promoted.
+Status is not `HISTORICALLY_VALIDATED` yet. The FW26 bottoms workbook provides partial independent historical validation evidence. Available duty references are now explained through versioned FW26 assumptions, while two source rows still have missing Duty references.
 
 ## Default Configuration
 
@@ -229,18 +229,23 @@ These are Model 001 defaults, not STDTEX global standards:
 
 ## Scope Architecture
 
-CURRENT: Cost Model 001 uses one global model default.
+CURRENT: Cost Model 001 has a domain-level configuration resolver. Without explicit historical context, it resolves to the existing current defaults and preserves the current runtime calculation behavior.
 
-FUTURE: Configuration can resolve through:
+CURRENT proven precedence:
 
 1. model default
-2. department override
-3. category override
-4. optional explicit style override later
+2. time-scoped origin/category duty override
 
-The most specific configured value wins.
+FUTURE, NOT IMPLEMENTED: configuration may later add company, department, category and explicit style scopes when independent evidence and product requirements prove them.
 
 Departments and categories must come from company configuration/domain data later. They are not hardcoded inside the costing engine.
+
+Duty override matching is deterministic:
+
+- origin is trimmed and uppercased;
+- category is trimmed and compared exactly;
+- season is trimmed, uppercased and compared exactly;
+- no fuzzy matching, substring matching or AI classification is used.
 
 ## Future Company Admin Configuration
 
@@ -266,7 +271,20 @@ A Company Admin should eventually be able to:
 
 ## Versioning
 
-FUTURE: Changing an active model configuration must create a new version instead of silently rewriting historical commercial decisions.
+Model version and configuration version are separate concepts.
+
+Model version changes when formula or business logic changes.
+
+Configuration version changes when rates or assumptions change while the formula stays the same.
+
+CURRENT:
+
+- model: `Cost Model 001`
+- formula version: `1`
+- current configuration version: `CURRENT`
+- historical configuration version represented in tests/domain config: `FW26`
+
+Future historical configurations should be immutable once validated. If a Company Admin changes rates later, STDTEX should create a new configuration version instead of silently mutating historical assumptions.
 
 Historical calculations should retain model id and version so decisions remain explainable.
 
@@ -478,6 +496,38 @@ A local full rerun of all `97` FW26 bottoms rows using only the proposed histori
 
 The two remaining records are `VIETNAM / JACKETS / Jct Nondenim` rows where the source workbook provides LDP and IMU references but no historical duty formula and no cached historical duty value. Model 001, Book1 and the FW26 duty calculator table all agree on `2.25` EUR/kg and `10%` for this origin/category, producing `1.827` duty. Because the historical duty reference is missing, these two rows should remain excluded from correction evidence instead of being filled by inference.
 
+### Versioned Duty Configuration Resolution
+
+The FW26 evidence is now represented as domain configuration, not as formula code.
+
+Temporal key selected: `season`.
+
+Reason: the historical source is explicitly an FW26 quotation workbook. The available records do not prove exact effective date boundaries, so the domain supports a deterministic season context instead of pretending an effective date is known.
+
+The calculation flow is:
+
+`historical record -> calculation context -> configuration resolver -> effective assumptions -> Cost Model 001 evaluator`
+
+The evaluator remains unaware of where duty assumptions came from. It receives resolved `dutyRows` and applies the same `MAX(fixed duty, percentage duty)` formula.
+
+Current default behavior:
+
+- no calculation context, no season, or non-FW26 season resolves to `CURRENT`;
+- current `DUTIES` values remain unchanged;
+- live/runtime calculations are unchanged.
+
+FW26 historical context:
+
+| Configuration version | Season | Origin | Category | Fixed duty | Duty % | Source |
+| --- | --- | --- | --- | ---: | ---: | --- |
+| `FW26` | `FW26` | `VIETNAM` | `Pants Commercial` | `2.2` | `0%` | `FW26 Duty Calculator GJ row 300` |
+| `FW26` | `FW26` | `VIETNAM` | `Jct Nondenim` | `2.25` | `10%` | `FW26 Duty Calculator GJ row 290` |
+| `FW26` | `FW26` | `BANGLADESH` | `Jeans Color` | `1.9` | `10%` | `FW26 Duty Calculator GJ row 67` |
+
+Resolution trace is available for tests/debugging. It records the base configuration and any matched duty override without logging data automatically in production.
+
+The historical validation harness can now accept a per-record configuration resolver. FW26 records carry `provenance.period.season = FW26`, allowing the harness to resolve historical assumptions without directly patching duty values.
+
 ### Required Historical Validation Record
 
 The validation harness expects normalized records with:
@@ -530,7 +580,7 @@ Sample size: `97`.
 
 Known mismatches: duty-driven landed-cost and IMU differences in specific origin/category groups.
 
-Model status remains `CHARACTERIZED`; validation status is `HISTORICAL_VALIDATION_IN_PROGRESS`.
+Model status remains `CHARACTERIZED`; validation status remains conservatively `HISTORICAL_VALIDATION_IN_PROGRESS` because two source Duty references are unavailable even though all available FW26 Duty references now resolve through configuration.
 
 ### Future Configuration Evidence
 
