@@ -8,6 +8,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Buying Tool</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="src/core/runtimeConfig.js"></script>
 <script src="src/core/formatting.js"></script>
 <script src="src/core/escaping.js"></script>
 <script src="src/core/router.js"></script>
@@ -18,6 +19,7 @@
 <script src="src/features/identity/index.js"></script>
 <script src="src/features/companies/companyModel.js"></script>
 <script src="src/features/companies/companyRepository.js"></script>
+<script src="src/features/companies/organizationService.js"></script>
 <script src="src/features/companies/index.js"></script>
 <script src="src/features/groups/groupModel.js"></script>
 <script src="src/features/groups/groupRepository.js"></script>
@@ -1914,12 +1916,13 @@ function normalizeExploreRows(){
 }
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ Supabase Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-var SUPA_URL='https://vtyffyywmqnlfemzlsbz.supabase.co';
-var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0eWZmeXl3bXFubGZlbXpsc2J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNDMxMTUsImV4cCI6MjA5NjkxOTExNX0.w4W0ekk-qAX9lAFAUY7cg5RGVX-iewOiuroPnVzNP30';
+var STDTEX_RUNTIME_CONFIG=StdtexRuntimeConfig.resolve();
+var SUPA_URL=STDTEX_RUNTIME_CONFIG.supabaseUrl;
+var SUPA_KEY=STDTEX_RUNTIME_CONFIG.publishableKey;
 var _sbFetch=window.fetch.bind(window);
 var sb=supabase.createClient(SUPA_URL,SUPA_KEY,{global:{fetch:function(url,opts){
-  if(typeof url==='string'&&url.indexOf('supabase.co')>=0){
-    url=url.replace('https://vtyffyywmqnlfemzlsbz.supabase.co',location.origin+'/sb');
+  if(STDTEX_RUNTIME_CONFIG.proxySupabaseThroughSameOrigin!==false&&typeof url==='string'&&url.indexOf('supabase.co')>=0){
+    url=url.replace(STDTEX_RUNTIME_CONFIG.supabaseUrl,location.origin+(STDTEX_RUNTIME_CONFIG.proxyPath||'/sb'));
   }
   return _sbFetch(url,opts);
 }}});
@@ -2359,14 +2362,18 @@ async function resolveAuth(){
     clearLoggedOutAppSurface();
     updateHeaderUser();
     await load();
-    enterExploreAfterAuth();
+    enterAuthenticatedRoute();
   }else{showPendingWall();}
 }
 
-function enterExploreAfterAuth(){
+function prepareAuthenticatedShell(){
   PUBLIC_VIEW=false;
   hideAuthWalls();
   clearLoggedOutAppSurface();
+}
+
+function enterExploreAfterAuth(){
+  prepareAuthenticatedShell();
   SHOWROOM_COLLECTIONS_VIEW=false;
   clearActiveCollection();
   SHOWROOM_SAVED_ONLY=false;
@@ -2378,6 +2385,14 @@ function enterExploreAfterAuth(){
   EXPLORE_SEARCH='';
   try{history.replaceState({stdtexPath:'/explore'},'','/explore');}catch(_e){}
   goTab('showroom');
+}
+
+function enterAuthenticatedRoute(){
+  prepareAuthenticatedShell();
+  var rawPath=(window.location&&window.location.pathname)||'/';
+  var p=normalizeRoutePath(rawPath);
+  if(rawPath!=='/'&&rawPath!=='/index.html'&&p&&applyRouteFromLocation())return;
+  enterExploreAfterAuth();
 }
 
 async function hydrateAuthCompanyFromMembership(){
@@ -2759,17 +2774,13 @@ CREATE POLICY "company_group_memberships_company_admin_read_write" ON public.com
   (auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\'
   OR EXISTS (SELECT 1 FROM public.company_memberships cm WHERE cm.company_id=public.company_group_memberships.company_id AND cm.user_id=auth.uid() AND cm.membership_status=\'Active\' AND cm.access_role IN (\'Company Admin\',\'Platform Admin\'))
 );
-GRANT SELECT ON TABLE public.company_invitations TO anon;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.company_invitations TO authenticated;
-CREATE POLICY "company_invitations_public_token_read" ON public.company_invitations FOR SELECT TO anon, authenticated USING (status=\'Pending\' AND token IS NOT NULL AND (expires_at IS NULL OR expires_at>now()));
-CREATE POLICY "company_invitations_company_admin_all" ON public.company_invitations FOR ALL TO authenticated USING (
-  (auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\'
-  OR EXISTS (SELECT 1 FROM public.company_memberships cm WHERE cm.company_id=public.company_invitations.company_id AND cm.user_id=auth.uid() AND cm.membership_status=\'Active\' AND cm.access_role IN (\'Company Admin\',\'Platform Admin\'))
-) WITH CHECK (
+-- Do not restore anonymous invitation-token reads. Invite acceptance must use accept_company_invitation(token).
+REVOKE ALL ON TABLE public.company_invitations FROM anon;
+GRANT SELECT ON TABLE public.company_invitations TO authenticated;
+CREATE POLICY "company_invitations_company_admin_read" ON public.company_invitations FOR SELECT TO authenticated USING (
   (auth.jwt()->>\'email\')=\'${ADMIN_EMAIL}\'
   OR EXISTS (SELECT 1 FROM public.company_memberships cm WHERE cm.company_id=public.company_invitations.company_id AND cm.user_id=auth.uid() AND cm.membership_status=\'Active\' AND cm.access_role IN (\'Company Admin\',\'Platform Admin\'))
 );
-CREATE POLICY "company_invitations_invitee_update" ON public.company_invitations FOR UPDATE TO authenticated USING (lower(email)=lower(coalesce(auth.jwt()->>\'email\',\'\')) AND status=\'Pending\') WITH CHECK (lower(email)=lower(coalesce(auth.jwt()->>\'email\',\'\')));
 CREATE TABLE IF NOT EXISTS public.supplier_brand_access (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   supplier_company text NOT NULL,
@@ -2908,14 +2919,12 @@ function setAuthMode(mode){
     setTimeout(function(){var e=document.getElementById('auth-email');if(e)e.focus();},50);
   }else if(mode==='invite'){
     var inv=TEAM_INVITE||{};
-    var company=inv.company_name||'Your company';
-    var logo=inv.company_logo||'';
-    body.innerHTML='<div class="invite-accept-head"><div class="invite-accept-logo">'+(logo?'<img src="'+escHtml(logo)+'" alt="'+escHtml(company)+' logo">':escHtml(companyInitials(company)))+'</div><div><h2>'+escHtml(company)+'</h2><p>You have been invited to join this team.</p></div></div>'
-      +'<input id="invite-email" type="email" class="auth-inp" value="'+escHtml(inv.email||'')+'" readonly>'
+    body.innerHTML='<div class="invite-accept-head"><div class="invite-accept-logo">'+escHtml(companyInitials('stdtex'))+'</div><div><h2>Team invite</h2><p>You have been invited to join a company on stdtex.</p></div></div>'
+      +'<input id="invite-email" type="email" class="auth-inp" placeholder="Email" autocomplete="email">'
       +'<input id="invite-pwd" type="password" class="auth-inp" placeholder="Create password">'
       +'<input id="invite-pwd2" type="password" class="auth-inp" placeholder="Confirm password">'
       +err+'<button class="auth-submit" onclick="acceptTeamInvite()">Join team</button>'
-      +'<p class="auth-helper">Use the email address shown above. Your company admin created this invite for you.</p>';
+      +'<p class="auth-helper">Use the email address where you received the invite. We will verify the invitation after you sign in.</p>';
   }else{
     body.innerHTML='<input id="reg-company-type" type="hidden" value="Brand">'
       +'<div class="company-type-picker" aria-label="Company type">'
@@ -2961,9 +2970,8 @@ async function showInviteFromUrl(){
   var token=inviteTokenFromUrl();
   if(!token)return false;
   try{
-    var r=await sb.from('company_invitations').select('*').eq('token',token).maybeSingle();
-    if(r.error||!r.data)throw r.error||new Error('Invite not found');
-    TEAM_INVITE=r.data;
+    TEAM_INVITE={token:token};
+    try{sessionStorage.setItem('stdtex:pending-invite',token);}catch(_se){}
     clearLoggedOutAppSurface();
     document.body.classList.add('logged-out-home');
     var w=document.getElementById('auth-wall');if(w)w.style.display='flex';
@@ -2979,21 +2987,22 @@ async function showInviteFromUrl(){
 async function acceptTeamInvite(){
   var inv=TEAM_INVITE,err=document.getElementById('auth-err'),btn=document.querySelector('.auth-submit');
   if(!inv||!inv.token){if(err)err.textContent='Invite not found.';return;}
-  var email=(document.getElementById('invite-email')||{}).value||inv.email||'';
+  var email=(document.getElementById('invite-email')||{}).value||'';
   var pwd=(document.getElementById('invite-pwd')||{}).value||'';
   var pwd2=(document.getElementById('invite-pwd2')||{}).value||'';
+  if(!email){if(err)err.textContent='Email is required.';return;}
   if(!pwd||pwd.length<6){if(err)err.textContent='Password must be at least 6 characters.';return;}
   if(pwd!==pwd2){if(err)err.textContent='Passwords do not match.';return;}
   if(btn){btn.disabled=true;btn.textContent='Joining team...';}
   try{
-    var auth=await sb.auth.signUp({email:email,password:pwd,options:{data:{company_invite_token:inv.token,company_name:inv.company_name,first_name:inv.first_name,last_name:inv.last_name,job_position:inv.intended_job_position}}});
+    try{sessionStorage.setItem('stdtex:pending-invite',inv.token);}catch(_se){}
+    var auth=await sb.auth.signUp({email:email,password:pwd,options:{data:{company_invite_token:inv.token}}});
     if(auth.error)throw auth.error;
     if(auth.data&&auth.data.session&&auth.data.session.user){
       AUTH_USER=auth.data.session.user;
-      await acceptTeamInviteForUser(AUTH_USER,inv);
+      await acceptTeamInviteForUser(inv.token);
       await resolveAuth();
     }else{
-      try{localStorage.setItem('stdtex:pending-invite',inv.token);}catch(_e){}
       var body=document.getElementById('auth-body');
       if(body)body.innerHTML='<div style="text-align:center;padding:16px 0"><div style="font-size:28px;font-weight:1000;margin-bottom:8px">Email sent</div><p style="color:#6b7280;font-size:13px;line-height:1.5;font-weight:800">Check your email to confirm your account,<br>then sign in with this email.</p><button class="auth-submit" style="margin-top:12px" onclick="setAuthMode(\'login\')">Go to sign in</button></div>';
     }
@@ -3005,41 +3014,38 @@ async function acceptTeamInvite(){
 async function acceptPendingTeamInviteAfterLogin(){
   if(!AUTH_USER)return;
   var token=inviteTokenFromUrl();
-  try{token=token||localStorage.getItem('stdtex:pending-invite')||'';}catch(_e){}
+  try{token=token||sessionStorage.getItem('stdtex:pending-invite')||'';}catch(_e){}
+  try{token=token||localStorage.getItem('stdtex:pending-invite')||'';}catch(_le){}
   if(!token)return;
   try{
-    var r=await sb.from('company_invitations').select('*').eq('token',token).maybeSingle();
-    if(r.data&&normCompanyName(r.data.email)===normCompanyName(AUTH_USER.email)){
-      await acceptTeamInviteForUser(AUTH_USER,r.data);
-      try{localStorage.removeItem('stdtex:pending-invite');}catch(_e2){}
-    }
-  }catch(e){}
+    await acceptTeamInviteForUser(token);
+    var pr=await sb.from('profiles').select('*').eq('id',AUTH_USER.id).maybeSingle();
+    if(pr.data)AUTH_PROFILE=pr.data;
+    await hydrateAuthCompanyFromMembership();
+  }catch(e){
+    toast(safeInviteErrorMessage(e),'err');
+  }finally{
+    clearPendingInviteToken();
+  }
 }
-async function acceptTeamInviteForUser(user,inv){
-  if(!user||!inv||!inv.company_id)return;
-  var companyName=inv.company_name||'',companyType='Brand';
-  try{
-    var cr=await sb.from('companies').select('id,name,type,logo').eq('id',inv.company_id).maybeSingle();
-    if(cr.data){companyName=cr.data.name||companyName;companyType=cr.data.type||companyType;inv.company_logo=inv.company_logo||cr.data.logo||'';}
-  }catch(_e){}
-  var inviteGroups=splitTeamGroups(inv.invite_group||inv.intended_department||'');
-  var inviteGroupText=inviteGroups.join(', ');
-  var patch={id:user.id,email:user.email||inv.email,approved:true,role:companyType==='Supplier'?'supplier':'user',first_name:inv.first_name||'',last_name:inv.last_name||'',company_name:companyName,active_company_name:companyName,company_type:companyType,supplier_company:companyType==='Supplier'?companyName:'',access_role:inv.intended_access_role||'Company Member',job_position:inv.intended_job_position||'',department:inviteGroupText,company_group:inviteGroupText,company_subgroup:inviteGroupText};
-  await sb.from('profiles').upsert(patch,{onConflict:'id'});
-  await sb.from('company_memberships').upsert({user_id:user.id,company_id:inv.company_id,access_role:patch.access_role,job_position:patch.job_position,department:patch.department,membership_status:'Active',invited_by:inv.invited_by||null,joined_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:'user_id'});
-  if(inviteGroups.length){
-    try{
-      for(var gi=0;gi<inviteGroups.length;gi++){
-        var gr=await sb.from('company_groups').select('id').eq('company_id',inv.company_id).eq('name',inviteGroups[gi]).maybeSingle();
-        if(gr.data&&gr.data.id)await sb.from('company_group_memberships').upsert({company_id:inv.company_id,company_group_id:gr.data.id,user_id:user.id},{onConflict:'company_group_id,user_id'});
-      }
-    }catch(_ge){}
-  }
-  try{await sb.from('company_invitations').update({status:'Accepted',accepted_at:new Date().toISOString()}).eq('token',inv.token);}catch(_ie){}
-  if(AUTH_USER&&AUTH_USER.id===user.id){
-    AUTH_PROFILE=Object.assign({},AUTH_PROFILE||{},patch);
-    upsertCompanyCache({id:inv.company_id,name:companyName,type:companyType,logo:inv.company_logo||'',status:'Active'});
-  }
+function clearPendingInviteToken(){
+  try{sessionStorage.removeItem('stdtex:pending-invite');}catch(_se){}
+  try{localStorage.removeItem('stdtex:pending-invite');}catch(_le){}
+}
+function safeInviteErrorMessage(e){
+  var msg=String((e&&e.message)||e||'Unable to accept invite.');
+  if(/expired/i.test(msg))return 'This invite link has expired.';
+  if(/not pending|revoked|cancel/i.test(msg))return 'This invite link is no longer active.';
+  if(/different company/i.test(msg))return 'This account already belongs to another company.';
+  if(/platform admin/i.test(msg))return 'Platform administrators cannot accept company invitations.';
+  if(/email/i.test(msg))return 'This invite must be accepted with the invited email address.';
+  return 'This invite link is not available.';
+}
+async function acceptTeamInviteForUser(token){
+  var r=await OrganizationService.acceptInvitation(sb,token);
+  if(r.error)throw r.error;
+  clearPendingInviteToken();
+  return r.data;
 }
 
 async function createRegistrationCompanyProfile(user,email,company,type){
@@ -5390,6 +5396,12 @@ function companyLocalGroups(companyName){
   }
   return groups;
 }
+function isUuidString(value){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value||''));
+}
+function companyPersistedGroups(companyName){
+  return companyLocalGroups(companyName).filter(function(g){return g&&isUuidString(g.id);});
+}
 function companyMembersList(companyName){
   var targetCompany=companyName||activeCompanyName();
   var currentCompany=normCompanyName(targetCompany);
@@ -5562,8 +5574,10 @@ async function assignCompanyMemberGroup(memberId,groupName){
   });
   writeCompanyLocal('groups',groups);
   try{
-    var patch={company_group:groupName,company_subgroup:groupName,department:groupName};
-    await updateProfileSafely(member.id,patch,{department:groupName});
+    var role=member.role==='Company Admin'||member.access_role==='Company Admin'?'Company Admin':'Company Member';
+    var groupIds=selectedTeamInviteGroupIds(activeCompanyName(),groupName?[groupName]:[]);
+    var r=await OrganizationService.updateMember(sb,{memberUserId:member.id,accessRole:role,groupIds:groupIds,jobPosition:member.position||member.job_position||'',department:groupName||''});
+    if(r.error)throw r.error;
   }catch(e){}
   toast('Member group updated','ok');
   renderCompanyPage('team');
@@ -5585,12 +5599,12 @@ async function toggleCompanyMemberGroup(memberId,groupName,on){
   if(!on)names=names.filter(function(x){return x!==groupName;});
   try{
     var joined=names.join(', ');
-    await updateProfileSafely(member.id,{company_group:joined,company_subgroup:joined,department:joined},{department:joined});
     var dbCompany=await adminEnsureCompanyDb(activeCompanyName(),activeCompanyType());
-    var dbGroup=await adminEnsureGroupDb(activeCompanyName(),groupName,'');
-    if(dbCompany&&dbGroup){
-      if(on)await sb.from('company_group_memberships').upsert({company_id:dbCompany.id,company_group_id:dbGroup.id,user_id:member.id},{onConflict:'company_group_id,user_id'});
-      else await sb.from('company_group_memberships').delete().eq('company_group_id',dbGroup.id).eq('user_id',member.id);
+    if(dbCompany){
+      var groupIds=selectedTeamInviteGroupIds(activeCompanyName(),names);
+      var role=member.role==='Company Admin'||member.access_role==='Company Admin'?'Company Admin':'Company Member';
+      var r=await OrganizationService.updateMember(sb,{memberUserId:member.id,accessRole:role,groupIds:groupIds,jobPosition:member.position||member.job_position||'',department:joined});
+      if(r.error)throw r.error;
     }
   }catch(e){}
   toast('Member groups updated','ok');
@@ -5707,11 +5721,15 @@ async function adminLoadCompanyGroupsFromDb(companyName){
   }catch(e){}
 }
 async function adminSyncGroupMembership(uid,companyName,groupName,on){
-  var group=await adminEnsureGroupDb(companyName,groupName,'');
-  if(!group||!group.id)return;
+  var member=profileById(uid)||{};
+  var names=companyMemberGroups({id:uid,email:member.email,group:member.company_group||member.company_subgroup||member.department||''},companyName);
+  if(on&&names.indexOf(groupName)<0)names.push(groupName);
+  if(!on)names=names.filter(function(x){return x!==groupName;});
   try{
-    if(on)await sb.from('company_group_memberships').upsert({company_id:group.company_id,company_group_id:group.id,user_id:uid},{onConflict:'company_group_id,user_id'});
-    else await sb.from('company_group_memberships').delete().eq('company_group_id',group.id).eq('user_id',uid);
+    var groupIds=selectedTeamInviteGroupIds(companyName,names);
+    var role=member.access_role||member.company_access_role||'Company Member';
+    var r=await OrganizationService.updateMember(sb,{memberUserId:uid,accessRole:role,groupIds:groupIds,jobPosition:member.job_position||member.position||'',department:names.join(', ')});
+    if(r.error)throw r.error;
   }catch(e){}
 }
 function openAdminCompanyDetail(id,tab){
@@ -6237,7 +6255,7 @@ async function deleteAdminCompany(name){
 function teamGroupPickerHtml(selected){
   selected=splitTeamGroups(selected||'');
   var selectedMap={};selected.forEach(function(g){selectedMap[normCompanyName(g)]=1;});
-  var groups=companyLocalGroups(ADMIN_COMPANY_ID?(adminCompanyById(ADMIN_COMPANY_ID)||{}).name:activeCompanyName());
+  var groups=companyPersistedGroups(ADMIN_COMPANY_ID?(adminCompanyById(ADMIN_COMPANY_ID)||{}).name:activeCompanyName());
   if(!groups.length)return '<div class="company-empty full">Create at least one group before adding users.</div>';
   return '<div class="team-group-picker">'+groups.map(function(g){
     var on=selectedMap[normCompanyName(g.name)]?'checked':'';
@@ -6247,6 +6265,15 @@ function teamGroupPickerHtml(selected){
 function selectedTeamInviteGroups(){
   var out=[];document.querySelectorAll('.team-invite-group-check:checked').forEach(function(x){if(x.value)out.push(x.value);});
   return out;
+}
+function selectedTeamInviteGroupIds(companyName,groups){
+  var selected=groups||selectedTeamInviteGroups(),ids=[];
+  var localGroups=companyPersistedGroups(companyName);
+  selected.forEach(function(name){
+    var g=localGroups.filter(function(x){return normCompanyName(x.name)===normCompanyName(name);})[0];
+    if(g&&isUuidString(g.id))ids.push(g.id);
+  });
+  return ids;
 }
 function teamInviteModalHtml(){
   return '<div id="team-invite-modal" class="f-modal" onclick="if(event.target===this)closeTeamInviteModal()">'
@@ -6321,12 +6348,20 @@ async function createTeamInvite(){
   try{
     var db=await adminEnsureCompanyDb(c.name,c.type||activeCompanyType());
     if(!db||!db.id)throw new Error('Company database record not found');
-    var profile=companyPublicProfile(c);
-    var token=makeInviteToken(),link=location.origin+location.pathname+'?invite='+encodeURIComponent(token);
-    var row={email:email,company_id:db.id,intended_access_role:role,intended_job_position:pos,intended_department:groupText,first_name:first,last_name:last,invite_group:groupText,token:token,status:'Pending',invited_by:AUTH_USER&&AUTH_USER.id||null,expires_at:new Date(Date.now()+14*24*60*60*1000).toISOString(),invite_link:link,company_name:profile.name||c.name,company_logo:profile.logo||''};
-    var r=await sb.from('company_invitations').insert(row).select('*').maybeSingle();
+    var groupIds=selectedTeamInviteGroupIds(c.name,groups);
+    var r=await OrganizationService.createInvitation(sb,{
+      email:email,
+      accessRole:role,
+      firstName:first,
+      lastName:last,
+      jobPosition:pos,
+      department:groupText,
+      groupIds:groupIds,
+      expiresAt:new Date(Date.now()+14*24*60*60*1000).toISOString()
+    });
     if(r.error)throw r.error;
-    var inviteRow=r.data||row;
+    var inviteRow=r.data||{};
+    var link=companyTeamInviteLink(inviteRow);
     COMPANY_INVITES_CACHE[companyKey(c.name)]=[inviteRow].concat((COMPANY_INVITES_CACHE[companyKey(c.name)]||[]).filter(function(x){return x.id!==inviteRow.id;}));
     var inp=document.getElementById('team-invite-link');if(inp)inp.value=link;
     var box=document.getElementById('team-invite-link-box');if(box)box.style.display='block';
@@ -6346,15 +6381,11 @@ async function saveTeamUserEdit(){
   var c=teamInviteCompanyContext();if(!c||!c.name){if(err)err.textContent='Company not found.';return;}
   try{
     var patch={first_name:first,last_name:last,access_role:role,company_access_role:role,job_position:pos,position:pos,company_group:groupText,company_subgroup:groupText,department:groupText};
-    await updateProfileSafely(uid,patch,{first_name:first,last_name:last,access_role:role,job_position:pos,department:groupText});
     var db=await adminEnsureCompanyDb(c.name,c.type||activeCompanyType());
+    var groupIds=selectedTeamInviteGroupIds(c.name,groups);
     if(db&&db.id){
-      await adminSyncCompanyMembership(uid,c.name,c.type||activeCompanyType(),role,pos);
-      try{await sb.from('company_group_memberships').delete().eq('company_id',db.id).eq('user_id',uid);}catch(_del){}
-      for(var gi=0;gi<groups.length;gi++){
-        var gr=await adminEnsureGroupDb(c.name,groups[gi],'');
-        if(gr&&gr.id)await sb.from('company_group_memberships').upsert({company_id:db.id,company_group_id:gr.id,user_id:uid},{onConflict:'company_group_id,user_id'});
-      }
+      var r=await OrganizationService.updateMember(sb,{memberUserId:uid,accessRole:role,groupIds:groupIds,jobPosition:pos,department:groupText});
+      if(r.error)throw r.error;
     }
     var local=profileById(uid);if(local)Object.assign(local,patch);
     var cache=COMPANY_MEMBERS_CACHE[companyKey(c.name)]||[];
@@ -6384,7 +6415,7 @@ async function cancelCompanyInvite(inviteId){
   if(!confirm('Cancel this invite link?'))return;
   var c=teamInviteCompanyContext();if(!c||!c.name)return;
   try{
-    var r=await sb.from('company_invitations').update({status:'Cancelled'}).eq('id',inviteId);
+    var r=await OrganizationService.revokeInvitation(sb,inviteId);
     if(r.error)throw r.error;
     COMPANY_INVITES_CACHE[companyKey(c.name)]=(COMPANY_INVITES_CACHE[companyKey(c.name)]||[]).filter(function(i){return i.id!==inviteId;});
     toast('Invite cancelled','ok');
@@ -6398,11 +6429,9 @@ async function removeCompanyTeamUser(uid,email){
   try{
     var db=await adminEnsureCompanyDb(c.name,c.type||activeCompanyType());
     if(!db||!db.id)throw new Error('Company database record not found');
-    await sb.from('company_group_memberships').delete().eq('company_id',db.id).eq('user_id',uid);
-    var mr=await sb.from('company_memberships').delete().eq('company_id',db.id).eq('user_id',uid);
+    var mr=await OrganizationService.removeMember(sb,uid);
     if(mr.error)throw mr.error;
     var patch={company_name:'',active_company_name:'',supplier_company:'',company_type:'',access_role:'Company Member',company_access_role:'Company Member',company_group:'',company_subgroup:'',department:''};
-    try{await updateProfileSafely(uid,patch,{company_name:'',company_type:'',access_role:'Company Member',department:''});}catch(_profile){}
     COMPANY_MEMBERS_CACHE[companyKey(c.name)]=(COMPANY_MEMBERS_CACHE[companyKey(c.name)]||[]).filter(function(u){return u.id!==uid;});
     var localGroups=companyLocalGroups(c.name);
     localGroups.forEach(function(g){g.members=(g.members||[]).filter(function(x){return x!==uid&&x!==email;});});

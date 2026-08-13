@@ -1,0 +1,6 @@
+{
+  "environment": "staging",
+  "projectRef": "amitkdqyfblymzdsrplx",
+  "supabaseUrl": "https://amitkdqyfblymzdsrplx.supabase.co",
+  "publishableKey": "PASTE_STAGING_PUBLISHABLE_KEY_HERE"
+}

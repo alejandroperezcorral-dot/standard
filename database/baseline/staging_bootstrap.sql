@@ -1,0 +1,27 @@
+-- STDTEX staging bootstrap manifest
+--
+-- Purpose:
+--   Empty standard Supabase project -> current STDTEX application schema.
+--
+-- This file is intentionally a manifest, not a production migration.
+-- Do not run this against production or any database containing STDTEX schema/data.
+--
+-- Execution order:
+--   1. Apply current_production_schema.sql to an empty standard Supabase project.
+--   2. Apply current_production_grants.sql. This includes narrow revokes for
+--      staging-default anon privileges that are absent from production.
+--   3. Apply current_production_policies.sql.
+--   4. Optionally regenerate policy DDL with current_production_policy_extraction.sql
+--      if production drift must be checked before replay.
+--   5. Verify parity against production for tables, columns, constraints, indexes,
+--      functions, triggers, RLS enablement, policies and storage bucket metadata.
+--
+-- Current replay status:
+--   First standalone staging replay completed against stdtex-staging
+--   (amitkdqyfblymzdsrplx). Replay exposed source-level drift in one extra
+--   index and staging-default anon grants. Corrected baseline must be replayed
+--   from a clean STDTEX application layer before validation can be marked pass.
+--
+-- Idempotency decision:
+--   Treat this as a one-time empty-database bootstrap. Do not use it as an
+--   idempotent production migration.
