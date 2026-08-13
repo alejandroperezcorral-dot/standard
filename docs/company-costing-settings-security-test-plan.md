@@ -103,6 +103,32 @@ Expected: global controlled administration works.
 
 Expected: semantic validation boundary stays server-side.
 
+## Semantic Validation Attack Tests
+
+These tests belong to the future costing-domain validator before calling
+`mark_cost_config_semantically_validated`.
+
+- Reject unknown top-level variable keys.
+- Reject values with the wrong JSON type for a known variable.
+- Reject negative rates, negative costs and negative day counts where the model expects non-negative numbers.
+- Reject NaN-like strings such as `"NaN"`, `"Infinity"` and `"-Infinity"`.
+- Reject extremely large values that exceed the domain's bounded ranges.
+- Reject unknown nested object keys.
+- Reject system metadata keys such as `id`, `company_id`, `created_by`, `updated_by`, `semantic_validation_status`, `activated_by` and `archived_by`.
+- Reject prototype-like keys such as `__proto__`, `constructor` and `prototype`.
+- Verify rejected configs remain `NOT_VALIDATED` and cannot be activated.
+
+Expected: malformed or hostile JSON never receives trusted semantic validation.
+
+## Audit Privacy Tests
+
+- Verify audit logs record metadata, scopes and changed key names.
+- Verify audit logs do not store complete `base_config` payloads.
+- Verify audit logs do not store complete override `values` payloads.
+- Verify audit logs do not store component numeric values unless later approved as intentional.
+
+Expected: audit logs are useful for traceability without becoming a shadow copy of commercially sensitive costing assumptions.
+
 ## Hostile Matrix
 
 | Scenario | Actor | Expected |

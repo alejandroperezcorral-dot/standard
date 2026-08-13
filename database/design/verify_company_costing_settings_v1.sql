@@ -147,6 +147,46 @@ order by tablename, policyname;
 
 -- Expected: zero rows.
 
+select
+  'costing_table_privileges' as check_name,
+  table_schema,
+  table_name,
+  grantee,
+  privilege_type
+from information_schema.role_table_grants
+where table_schema = 'public'
+  and table_name in (
+    'cost_models',
+    'company_costing_settings',
+    'cost_config_versions',
+    'cost_config_overrides',
+    'cost_additional_components'
+  )
+order by table_name, grantee, privilege_type;
+
+select
+  'unexpected_costing_table_privileges' as check_name,
+  table_schema,
+  table_name,
+  grantee,
+  privilege_type
+from information_schema.role_table_grants
+where table_schema = 'public'
+  and table_name in (
+    'cost_models',
+    'company_costing_settings',
+    'cost_config_versions',
+    'cost_config_overrides',
+    'cost_additional_components'
+  )
+  and (
+    grantee in ('PUBLIC', 'anon')
+    or (grantee = 'authenticated' and privilege_type <> 'SELECT')
+  )
+order by table_name, grantee, privilege_type;
+
+-- Expected: zero rows.
+
 -- ---------------------------------------------------------------------------
 -- 6. Functions and grants
 -- ---------------------------------------------------------------------------

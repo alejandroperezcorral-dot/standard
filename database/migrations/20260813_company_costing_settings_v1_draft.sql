@@ -1151,7 +1151,16 @@ begin
     v_config.company_id,
     'cost_config_overrides',
     p_override_id::text,
-    to_jsonb(v_override),
+    jsonb_build_object(
+      'config_version_id', v_override.config_version_id,
+      'season_key', v_override.season_key,
+      'origin_key', v_override.origin_key,
+      'category_key', v_override.category_key,
+      'value_keys', (
+        select jsonb_agg(k order by k)
+        from jsonb_object_keys(v_override.values) as keys(k)
+      )
+    ),
     'Company costing override removed through controlled RPC'
   );
 
@@ -1242,7 +1251,15 @@ begin
     v_config.company_id,
     'cost_additional_components',
     v_component.id::text,
-    to_jsonb(v_component),
+    jsonb_build_object(
+      'config_version_id', v_component.config_version_id,
+      'name', v_component.name,
+      'calculation_type', v_component.calculation_type,
+      'enabled', v_component.enabled,
+      'season_key', v_component.season_key,
+      'origin_key', v_component.origin_key,
+      'category_key', v_component.category_key
+    ),
     'Company costing component added through controlled RPC'
   );
 
@@ -1324,7 +1341,19 @@ begin
     v_config.company_id,
     'cost_additional_components',
     v_component.id::text,
-    to_jsonb(v_component),
+    jsonb_build_object(
+      'config_version_id', v_component.config_version_id,
+      'name', v_component.name,
+      'calculation_type', v_component.calculation_type,
+      'enabled', v_component.enabled,
+      'season_key', v_component.season_key,
+      'origin_key', v_component.origin_key,
+      'category_key', v_component.category_key,
+      'patch_keys', (
+        select jsonb_agg(k order by k)
+        from jsonb_object_keys(p_patch) as keys(k)
+      )
+    ),
     'Company costing component updated through controlled RPC'
   );
 
@@ -1388,7 +1417,15 @@ begin
     v_config.company_id,
     'cost_additional_components',
     p_component_id::text,
-    to_jsonb(v_component),
+    jsonb_build_object(
+      'config_version_id', v_component.config_version_id,
+      'name', v_component.name,
+      'calculation_type', v_component.calculation_type,
+      'enabled', v_component.enabled,
+      'season_key', v_component.season_key,
+      'origin_key', v_component.origin_key,
+      'category_key', v_component.category_key
+    ),
     'Company costing component removed through controlled RPC'
   );
 
