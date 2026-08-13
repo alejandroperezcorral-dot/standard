@@ -1,0 +1,371 @@
+-- STDTEX Company Costing Settings V1 - REVIEWED
+-- DESIGN ONLY
+-- NOT A MIGRATION
+-- DO NOT APPLY
+--
+-- Purpose:
+--   Hardened review-only schema draft for future staging migration design.
+--   This file intentionally lives under database/design, not database/migrations.
+--
+-- Safety:
+--   Do not run this against staging or production without explicit approval.
+--   This draft does not execute formulas in PostgreSQL.
+--   This draft does not alter negotiation_rows.
+--   This draft does not alter existing RLS.
+--
+-- Current schema compatibility notes:
+--   companies.id is uuid.
+--   company_memberships.user_id references auth.users(id).
+--   company_memberships.company_id references companies(id).
+--   company_group_memberships allows many groups per user inside one company.
+--   negotiation_rows.id is bigint and remains the style/product source.
+--   origin, category and season are currently text concepts, not FK taxonomies.
+--
+-- Final V1 shape:
+--   company -> company_costing_settings -> cost_model -> cost_config_version
+--   cost_config_version -> base_config jsonb + scoped overrides
+--
+-- Source type vocabulary for DB settings:
+--   FOB_ONLY: no costing configuration; STDTEX remains FOB-first.
+--   STDTEX_MODEL: local STDTEX model implementation, e.g. cost-model-001.
+--   ERP: external ERP source; no local config version required.
+--   COMPANY_API: future company-owned API source.
+--   THIRD_PARTY: future external service source.
+--
+-- Runtime note:
+--   Runtime CostingSourceType currently uses STDTEX_COST_MODEL and CUSTOM_API.
+--   The future migration must map DB source types to runtime source types in
+--   application code without changing current runtime behavior in this phase.
+
+-- ---------------------------------------------------------------------------
+-- 1. Platform cost model catalog
+-- ---------------------------------------------------------------------------
+
+-- create table public.cost_models (
+--   id uuid primary key default gen_random_uuid(),
+--   code text not null,
+--   name text not null,
+--   description text,
+--   source_type text not null,
+--   status text not null default 'AVAILABLE',
+--   current_formula_version integer,
+--   template_key text,
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now(),
+--
+--   constraint cost_models_code_key unique (code),
+--   constraint cost_models_code_not_blank check (length(btrim(code)) > 0),
+--   constraint cost_models_source_type_check check (
+--     source_type in ('STDTEX_MODEL','ERP','COMPANY_API','THIRD_PARTY')
+--   ),
+--   constraint cost_models_status_check check (
+--     status in ('AVAILABLE','DEPRECATED','DISABLED')
+--   ),
+--   constraint cost_models_formula_version_check check (
+--     current_formula_version is null or current_formula_version > 0
+--   )
+-- );
+--
+-- comment on table public.cost_models is
+--   'Platform catalog of selectable cost model identities. No formula code is stored here.';
+-- comment on column public.cost_models.code is
+--   'Stable domain implementation code, e.g. cost-model-001.';
+-- comment on column public.cost_models.current_formula_version is
+--   'Formula implementation version. This is not a configuration version.';
+-- comment on column public.cost_models.template_key is
+--   'Application/domain template key used to instantiate complete company drafts.';
+
+-- ---------------------------------------------------------------------------
+-- 2. Company active costing selection
+-- ---------------------------------------------------------------------------
+
+-- create table public.company_costing_settings (
+--   company_id uuid primary key references public.companies(id) on delete cascade,
+--   cost_source_type text not null default 'FOB_ONLY',
+--   active_cost_model_id uuid references public.cost_models(id),
+--   active_config_version_id uuid,
+--   fallback_behavior text not null default 'FOB_ONLY',
+--   updated_by uuid references auth.users(id),
+--   updated_at timestamptz not null default now(),
+--
+--   constraint company_costing_settings_source_type_check check (
+--     cost_source_type in ('FOB_ONLY','STDTEX_MODEL','ERP','COMPANY_API','THIRD_PARTY')
+--   ),
+--   constraint company_costing_settings_fallback_check check (
+--     fallback_behavior in ('FOB_ONLY','NOT_AVAILABLE','CODE_DEFAULT_DURING_MIGRATION')
+--   ),
+--   constraint company_costing_settings_local_model_required check (
+--     (
+--       cost_source_type = 'STDTEX_MODEL'
+--       and active_cost_model_id is not null
+--       and active_config_version_id is not null
+--     )
+--     or (
+--       cost_source_type <> 'STDTEX_MODEL'
+--       and active_config_version_id is null
+--     )
+--   )
+-- );
+--
+-- comment on table public.company_costing_settings is
+--   'One active costing choice per company. ERP/FOB/API sources are not forced into local config versions.';
+
+-- ---------------------------------------------------------------------------
+-- 3. Company-owned model configuration versions
+-- ---------------------------------------------------------------------------
+
+-- create table public.cost_config_versions (
+--   id uuid primary key default gen_random_uuid(),
+--   company_id uuid not null references public.companies(id) on delete cascade,
+--   cost_model_id uuid not null references public.cost_models(id),
+--   formula_version integer not null,
+--   config_code text not null,
+--   config_label text not null,
+--   lifecycle_status text not null default 'DRAFT',
+--   base_config jsonb not null,
+--   based_on_config_version_id uuid references public.cost_config_versions(id),
+--   season_key text,
+--   effective_from timestamptz,
+--   effective_to timestamptz,
+--   created_by uuid references auth.users(id),
+--   created_at timestamptz not null default now(),
+--   updated_by uuid references auth.users(id),
+--   updated_at timestamptz not null default now(),
+--   activated_by uuid references auth.users(id),
+--   activated_at timestamptz,
+--   archived_by uuid references auth.users(id),
+--   archived_at timestamptz,
+--   source_reference text,
+--   notes text,
+--
+--   constraint cost_config_versions_formula_version_check check (formula_version > 0),
+--   constraint cost_config_versions_config_code_not_blank check (length(btrim(config_code)) > 0),
+--   constraint cost_config_versions_config_label_not_blank check (length(btrim(config_label)) > 0),
+--   constraint cost_config_versions_lifecycle_status_check check (
+--     lifecycle_status in ('DRAFT','ACTIVE','ARCHIVED')
+--   ),
+--   constraint cost_config_versions_base_config_object check (
+--     jsonb_typeof(base_config) = 'object'
+--   ),
+--   constraint cost_config_versions_season_normalized check (
+--     season_key is null or season_key = upper(btrim(season_key))
+--   ),
+--   constraint cost_config_versions_effective_range_check check (
+--     effective_from is null or effective_to is null or effective_from < effective_to
+--   ),
+--   constraint cost_config_versions_company_model_code_key unique (
+--     company_id,
+--     cost_model_id,
+--     config_code
+--   )
+-- );
+--
+-- create unique index cost_config_versions_one_active_per_company_model
+-- on public.cost_config_versions(company_id, cost_model_id)
+-- where lifecycle_status = 'ACTIVE';
+--
+-- create index cost_config_versions_company_model_status_idx
+-- on public.cost_config_versions(company_id, cost_model_id, lifecycle_status);
+--
+-- comment on table public.cost_config_versions is
+--   'Company-owned immutable/versioned assumption snapshots. Formula version and config version are deliberately separate.';
+-- comment on column public.cost_config_versions.formula_version is
+--   'Formula implementation version, e.g. 1 for Cost Model 001.';
+-- comment on column public.cost_config_versions.config_code is
+--   'Configuration code, e.g. CURRENT, FW26, SS27-DRAFT.';
+-- comment on column public.cost_config_versions.lifecycle_status is
+--   'DRAFT is editable through commands. ACTIVE and ARCHIVED are immutable except controlled lifecycle transitions.';
+--
+-- alter table public.company_costing_settings
+-- add constraint company_costing_settings_active_config_fkey
+-- foreign key (active_config_version_id) references public.cost_config_versions(id);
+--
+-- Cross-company ownership between company_costing_settings.active_config_version_id
+-- and cost_config_versions.company_id cannot be fully guaranteed by a simple FK.
+-- The future migration should enforce it with controlled RPC validation and/or
+-- a trigger that checks active config belongs to the same company and model.
+
+-- ---------------------------------------------------------------------------
+-- 4. Partial scoped overrides
+-- ---------------------------------------------------------------------------
+
+-- create table public.cost_config_overrides (
+--   id uuid primary key default gen_random_uuid(),
+--   config_version_id uuid not null references public.cost_config_versions(id) on delete cascade,
+--   season_key text not null,
+--   origin_key text not null,
+--   category_key text not null,
+--   values jsonb not null,
+--   source_reference text,
+--   created_by uuid references auth.users(id),
+--   created_at timestamptz not null default now(),
+--   updated_by uuid references auth.users(id),
+--   updated_at timestamptz not null default now(),
+--
+--   constraint cost_config_overrides_values_object check (
+--     jsonb_typeof(values) = 'object'
+--   ),
+--   constraint cost_config_overrides_season_not_blank check (length(btrim(season_key)) > 0),
+--   constraint cost_config_overrides_origin_not_blank check (length(btrim(origin_key)) > 0),
+--   constraint cost_config_overrides_category_not_blank check (length(btrim(category_key)) > 0),
+--   constraint cost_config_overrides_season_normalized check (season_key = upper(btrim(season_key))),
+--   constraint cost_config_overrides_origin_normalized check (origin_key = upper(btrim(origin_key))),
+--   constraint cost_config_overrides_exact_scope_key unique (
+--     config_version_id,
+--     season_key,
+--     origin_key,
+--     category_key
+--   )
+-- );
+--
+-- create index cost_config_overrides_lookup_idx
+-- on public.cost_config_overrides(config_version_id, season_key, origin_key, category_key);
+--
+-- comment on table public.cost_config_overrides is
+--   'Partial values applied over a config snapshot for the proven V1 scope: season + origin + category.';
+-- comment on column public.cost_config_overrides.values is
+--   'Partial override payload. Allowed keys and types are validated by command layer, not arbitrary SQL expressions.';
+
+-- ---------------------------------------------------------------------------
+-- 5. Structured additional cost components
+-- ---------------------------------------------------------------------------
+
+-- create table public.cost_additional_components (
+--   id uuid primary key default gen_random_uuid(),
+--   config_version_id uuid not null references public.cost_config_versions(id) on delete cascade,
+--   name text not null,
+--   calculation_type text not null,
+--   value numeric not null,
+--   currency text,
+--   percentage_basis text,
+--   enabled boolean not null default true,
+--   season_key text,
+--   origin_key text,
+--   category_key text,
+--   source_reference text,
+--   created_by uuid references auth.users(id),
+--   created_at timestamptz not null default now(),
+--   updated_by uuid references auth.users(id),
+--   updated_at timestamptz not null default now(),
+--
+--   constraint cost_additional_components_name_not_blank check (length(btrim(name)) > 0),
+--   constraint cost_additional_components_calculation_type_check check (
+--     calculation_type in ('FIXED_PER_UNIT','PERCENTAGE_OF_BASE')
+--   ),
+--   constraint cost_additional_components_value_check check (value >= 0),
+--   constraint cost_additional_components_percentage_basis_check check (
+--     percentage_basis is null
+--     or percentage_basis in ('FOB','FOB_PLUS_FREIGHT','LANDED_BEFORE_ADDITIONAL_COSTS')
+--   ),
+--   constraint cost_additional_components_percentage_requires_basis check (
+--     (calculation_type = 'PERCENTAGE_OF_BASE' and percentage_basis is not null)
+--     or (calculation_type <> 'PERCENTAGE_OF_BASE')
+--   )
+-- );
+--
+-- create index cost_additional_components_config_idx
+-- on public.cost_additional_components(config_version_id)
+-- where enabled = true;
+--
+-- comment on table public.cost_additional_components is
+--   'Optional safe structured costs. No raw formulas, JavaScript, SQL or expression strings.';
+
+-- ---------------------------------------------------------------------------
+-- 6. Security design notes only
+-- ---------------------------------------------------------------------------
+--
+-- All tables:
+--   enable RLS before exposing them through the Supabase API.
+--   revoke anon.
+--   avoid policies to public.
+--   avoid using user-editable metadata for authorization.
+--
+-- Preferred helper direction:
+--   private.current_is_platform_admin()
+--   private.current_is_company_admin_for(company_id)
+--
+-- Read:
+--   Company Admin: own company settings/configs.
+--   Company Member: no raw config read in V1 unless a product route requires it.
+--   Platform Admin: global read.
+--
+-- Write:
+--   Company Admin writes through controlled RPCs only.
+--   Platform Admin writes through controlled admin RPCs or tightly scoped policies.
+--   No broad authenticated table mutations.
+--
+-- Immutability:
+--   DRAFT rows may be edited through command validation.
+--   ACTIVE and ARCHIVED rows are immutable except activate/archive commands.
+
+-- ---------------------------------------------------------------------------
+-- 7. Minimal command/RPC contracts, design only
+-- ---------------------------------------------------------------------------
+--
+-- set_company_cost_source(company_id, cost_source_type, cost_model_code default null)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Validates source, ownership, model availability and source/config compatibility.
+--
+-- create_cost_config_draft(company_id, cost_model_code, config_label, based_on_config_version_id default null)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Creates a complete DRAFT snapshot from canonical domain template or existing config.
+--
+-- duplicate_cost_config(config_version_id, new_config_label)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Copies base_config, overrides and additional components into a new DRAFT.
+--
+-- update_cost_config_draft(config_version_id, patch jsonb)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Validates DRAFT, known variable keys, types and ranges.
+--
+-- upsert_cost_override(config_version_id, scope jsonb, values jsonb)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Validates DRAFT, exact scope, known variable keys, types and duplicate conflicts.
+--
+-- remove_cost_override(override_id)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Validates parent config is DRAFT.
+--
+-- add_cost_component(config_version_id, component jsonb)
+-- update_cost_component(component_id, patch jsonb)
+-- remove_cost_component(component_id)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Validates DRAFT and supported calculation types only.
+--
+-- activate_cost_config(config_version_id)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Transaction:
+--     validate DRAFT, formula version, model availability, base_config, overrides.
+--     archive previous ACTIVE for same company/model.
+--     activate selected config.
+--     update company_costing_settings.
+--     insert audit_logs event.
+--     commit or rollback all.
+--
+-- archive_cost_config(config_version_id)
+--   Caller: Company Admin for own company, Platform Admin.
+--   Refuses active config unless another ACTIVE is set atomically.
+--
+-- test_cost_config(config_version_id, sample_context jsonb)
+--   Execution should call the Costing domain implementation through application
+--   service or Edge Function. Do not duplicate Cost Model 001 formulas in SQL.
+
+-- ---------------------------------------------------------------------------
+-- 8. Seed design, not executable in this file
+-- ---------------------------------------------------------------------------
+--
+-- cost-model-001:
+--   code: cost-model-001
+--   source_type: STDTEX_MODEL
+--   current_formula_version: 1
+--   template_key: cost-model-001/current
+--
+-- The canonical CURRENT default template remains in Costing domain code.
+-- On company enablement, backend clones the complete domain template into a
+-- company-owned DRAFT or ACTIVE config according to the final product decision.
+--
+-- FW26:
+--   should be imported only as company-scoped historical evidence/config.
+--   It must not become a global default and must not leak commercial assumptions
+--   to unrelated companies.
+

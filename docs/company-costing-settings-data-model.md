@@ -1,360 +1,341 @@
-# STDTEX Company Costing Settings Data Model
+# STDTEX Company Costing Settings V1
 
-Status: DESIGN ONLY  
+Status: REVIEWED DESIGN ONLY
 Runtime impact: none  
 Database impact: none  
-Current checkpoint: `159bc4c refactor: add versioned duty configuration resolution`
+Current checkpoint reviewed: `ed6109e docs: design company costing settings data model`
+Reviewed SQL design: `database/design/company_costing_settings_v1_reviewed.sql`
 
 ## 1. Product Goal
 
 Company Settings -> Costing should let a Company Admin manage costing assumptions without touching formula code.
 
-The core product rule is:
+The core product rule remains:
 
 The cost model defines how to calculate. The configuration defines which assumptions to use.
 
-Cost Model 001 must open with today's current values already populated. A company must not start from an empty configuration. Admin edits should create a new draft configuration version, test it, and then activate it atomically. Historical configurations remain explainable and should not be silently mutated.
+Cost Model 001 must start with current values already populated. A company must not start from an empty configuration. Admin edits should create a new draft configuration, validate/test it, and activate it atomically. Historical configurations remain explainable and must not be silently mutated.
 
-## 2. Proven Requirements
+## 2. Reviewed Current DB Compatibility
 
-Current proven Cost Model 001 facts:
+Read-only inspection was performed against the current production schema and compared with the local production baseline.
+
+Current organization tables:
+
+- `companies`: UUID primary key, `type` constrained to `Brand` or `Supplier`, RLS enabled.
+- `profiles`: UUID primary key referencing `auth.users(id)`, legacy mirrored role/company fields, RLS enabled.
+- `company_memberships`: UUID primary key, `user_id -> auth.users(id)`, `company_id -> companies(id)`, one-company-per-user unique index exists in baseline, RLS enabled.
+- `company_groups`: UUID primary key, `company_id -> companies(id)`, unique `(company_id, name)`, RLS enabled.
+- `company_group_memberships`: UUID primary key, users may belong to multiple groups inside their company, RLS enabled.
+- `audit_logs`: UUID primary key, generic event log with `action`, actor/target/company/entity fields and JSONB previous/new values, RLS enabled.
+
+Current business/style tables:
+
+- `negotiation_rows`: `id bigint` primary key, current style/product commercial source. It stores text `origin`, text `temporada`, text `dept`, text `cat`, transport, FOB fields, units, target IMU, FSD, HOD and status.
+- `showroom_collections_scoped`: UUID collection table still scoped by owner company/group/type text.
+- `style_collection_assignments`: UUID assignment table linking `row_id bigint` to `negotiation_rows(id)`.
+
+Important current representation facts:
+
+- Platform Admin is not a normal company membership concept. The hardened design direction uses `private.current_is_platform_admin()`.
+- Company Admin lives in `company_memberships.access_role = 'Company Admin'`.
+- Company Member lives in `company_memberships.access_role = 'Company Member'`.
+- Origin is currently text, not a country FK.
+- Category is currently text, not a taxonomy FK.
+- Season is currently text, not a date range.
+- Departments, destination and transport are not normalized costing dimensions today.
+
+Design consequence:
+
+Costing V1 must reuse UUID company ownership and trusted membership authorization, but it must not invent master tables for origin/category/season before the product has them.
+
+## 3. Current Proven Costing Requirements
+
+Cost Model 001 evidence:
 
 - Formula version: `1`
 - Current runtime configuration: `CURRENT`
 - Historical validation configuration: `FW26`
-- Proven scoped override dimensions: `season`, `origin`, `category`
-- Current precedence: model default -> matching season + origin + category override
-- Formula did not change during FW26 validation. Historical assumptions changed.
+- Proven scoped override dimensions: `season + origin + category`
+- FW26 validation:
+  - Freight: `97 / 97` exact
+  - Transit: `97 / 97` exact
+  - Duty: `95 / 97` exact available references, `2` reference missing, `0` true mismatches
+  - LDP: `95 / 97` matched/explained
+  - IMU: `95 / 97` matched/explained
 
-Future Company Admin must eventually be able to:
+Historical conclusion:
 
-- Select a cost source or active cost model.
-- View and edit current assumptions.
-- Configure duty, freight, FX, VAT, target IMU, insurance, weight uplift and future costs.
-- Create scoped overrides.
-- Test draft configuration results before activation.
-- Activate a configuration version while preserving historical versions.
+The formula stayed stable. The assumptions changed by time/season plus origin plus category.
 
-## 3. Existing Company And Domain Audit
+## 4. Final V1 Architecture
 
-Existing normalized company tables in the production baseline:
+The reviewed target shape is:
 
-- `companies`: company identity, `type` constrained to `Brand` or `Supplier`, logo and public profile fields.
-- `company_groups`: groups scoped to a company.
-- `company_memberships`: one company per user, access role such as `Company Member` or `Company Admin`.
-- `company_group_memberships`: many groups per user inside the same company.
-- `company_invitations`: company invitation workflow.
-- `profiles`: legacy/profile mirror fields including role, company names, company type and access role.
+```mermaid
+flowchart TD
+  A["Company"] --> B["Company Costing Settings"]
+  B --> C["Cost Model"]
+  C --> D["Configuration Version"]
+  D --> E["Base Config JSONB"]
+  D --> F["Scoped Overrides"]
+  D --> G["Structured Additional Costs"]
+  D --> H["Costing Domain / Connector"]
+  H --> I["Cost Result"]
+```
 
-Existing style/product table:
+This is the minimum robust schema:
 
-- `negotiation_rows`: still the broad style/source-of-truth table. It stores `origin`, `temporada`, `dept`, `cat`, `transport`, `pvp_rub`, FOB fields, units, target IMU, status, FSD and HOD.
+- `cost_models`
+- `company_costing_settings`
+- `cost_config_versions`
+- `cost_config_overrides`
+- `cost_additional_components`
 
-Existing collections tables:
+No calculation result ledger is created in V1.
 
-- `showroom_collections_scoped`: collections scoped by company name/group/type as text.
-- `style_collection_assignments`: links `negotiation_rows.id` to collection name and owner scope.
+## 5. Tables In Initial Design
 
-Current domain representations:
+The original design proposed:
 
-- Company type is normalized in `companies.type` as `Brand` or `Supplier`.
-- Company Admin and Company Member live in `company_memberships.access_role`.
-- Platform Admin exists as application/profile role and must not require company membership.
-- Groups are normalized by id in `company_groups`, but some collection scope fields still use group names.
-- Departments are not normalized as a canonical DB table. Style department currently comes from `negotiation_rows.dept` and hardcoded/runtime option lists.
-- Categories are not normalized as a canonical product taxonomy. Style category currently comes from `negotiation_rows.cat` and duty rows in runtime code.
-- Origin is text in `negotiation_rows.origin` and runtime duty/freight maps. It is usually uppercase country/origin text, not a country-id FK.
-- Season is text in `negotiation_rows.temporada` and runtime `SEASONS`.
-- Destination is not a first-class field in `negotiation_rows`; Russia/RUB assumptions are currently embedded in Model 001.
-- Transport mode is text in `negotiation_rows.transport` and freight route maps.
+- `cost_models`
+- `company_costing_settings`
+- `cost_config_versions`
+- `cost_config_overrides`
+- `cost_additional_components`
 
-Implication: costing V1 should not create fake foreign keys to department/category/origin master tables that do not yet exist. It should store normalized text keys now and leave space to add FKs later.
+It also discussed future `style_cost_snapshots`.
 
-## 4. Existing Costing Domain Audit
+## 6. Tables Removed Or Simplified
 
-Current costing files:
+Removed from V1:
 
-- `src/features/costing/costModel.js`
-- `src/features/costing/costConnector.js`
-- `src/features/costing/costService.js`
-- `src/features/costing/costResultModel.js`
-- `src/features/costing/index.js`
+- No `style_cost_snapshots` table. The current workflow does not require a persisted calculation ledger.
+- No separate variable-value tables. They are overbuilt for one characterized model and would increase RLS/write complexity.
+- No `TESTED` lifecycle status. Testing is an action/result, not a durable lifecycle state needed for V1.
+- No generic scope table, scope JSONB engine or priority engine.
+- No formula table, expression table, SQL formula storage, JavaScript storage or custom script storage.
 
-Current domain objects:
+Simplified:
 
-- `CostModel001Status`
-- `CostingSourceType`
-- `CostingResultStatus`
-- Cost Model 001 identity: `cost-model-001`
-- Formula version: `1`
-- Configuration codes: `CURRENT`, `FW26`
-- Default assumptions:
-  - insurance rate
-  - gross weight uplift
-  - RUB/USD exchange rate
-  - EUR/USD exchange rate
-  - VAT
-  - target IMU
-  - fallback duty
-  - default origin
-  - default transport
-- Variable metadata in `COST_MODEL_001_VARIABLES`
-- Duty overrides with `scope`, `period`, `values`, `source`
-- Configuration resolver
-- Pure evaluator
-- Connector adapter
-- Cost result wrapper
+- Override scope is only `season_key`, `origin_key`, `category_key` for V1.
+- Department, destination and transport are explicitly future dimensions, not V1 columns.
+- Additional costs remain one structured table with safe calculation types only.
 
-Persistence must support these objects without moving formula logic into the database.
+## 7. Final V1 Tables
 
-## 5. Core Costing Concepts
+### `cost_models`
 
-Cost model:
+Purpose: platform catalog of selectable costing model identities.
 
-- Stable identity for a calculation methodology.
-- Example: `Cost Model 001`.
-- Stored in DB only as selectable metadata. Formula JavaScript remains in application/domain code.
+Required fields:
 
-Cost model formula version:
+- `id uuid primary key`
+- `code text unique not null`, e.g. `cost-model-001`
+- `name text not null`
+- `description text`
+- `source_type text not null`
+- `status text not null`
+- `current_formula_version integer`
+- `template_key text`
+- timestamps
 
-- Version of the formula implementation.
-- Example: formula version `1`.
-- Changes only when calculation behavior changes.
+The table stores identity and availability only. It does not store formula code.
 
-Cost configuration version:
+### `company_costing_settings`
 
-- Versioned assumption set for a company and model.
-- Example: `CURRENT`, `FW26`, `SS27 Draft`.
-- Changes when rates/assumptions change while formula remains stable.
+Purpose: one active costing choice per company.
 
-Cost override:
+Required fields:
 
-- Partial scoped difference from a base configuration.
-- Example: `season=FW26`, `origin=VIETNAM`, `category=Pants Commercial`, `fixedDuty=2.2`, `dutyPercent=0`.
+- `company_id uuid primary key references companies(id)`
+- `cost_source_type text not null default 'FOB_ONLY'`
+- `active_cost_model_id uuid references cost_models(id)`
+- `active_config_version_id uuid references cost_config_versions(id)`
+- `fallback_behavior text not null default 'FOB_ONLY'`
+- `updated_by uuid`
+- `updated_at timestamptz`
 
-Cost result:
+`ERP`, `COMPANY_API`, `THIRD_PARTY` and `FOB_ONLY` must not be forced into a local config version.
 
-- Future calculation trace or snapshot that records which model/config produced a displayed result.
-- Not required as a table in V1.
+### `cost_config_versions`
 
-## 6. Model Identity Design
+Purpose: company-owned versioned assumption snapshots.
 
-Recommended model identity fields:
+Required fields:
 
-- `id`: UUID
-- `code`: stable unique code, e.g. `cost-model-001`
-- `name`
-- `description`
-- `source_type`: one of `STDTEX_MODEL`, `ERP`, `COMPANY_API`, `THIRD_PARTY`, `FOB_ONLY`
-- `status`: `AVAILABLE`, `DEPRECATED`, `DISABLED`
-- `current_formula_version`
-- `created_at`
-- `updated_at`
-
-Do not store formula JavaScript in the database. The DB selects/configures models; it does not execute arbitrary customer code.
-
-## 7. Cost Source Type Design
-
-V1 source types:
-
-- `FOB_ONLY`
-- `STDTEX_MODEL`
-- `ERP`
-- `COMPANY_API`
-- `THIRD_PARTY`
-
-`FOB_ONLY` should be the safe fallback when no costing source is enabled. `STDTEX_MODEL` is the source type for Cost Model 001. Other source types are metadata only until connectors exist.
-
-## 8. Configuration Version Design
-
-Recommended lifecycle statuses:
-
-- `DRAFT`
-- `TESTED`
-- `ACTIVE`
-- `ARCHIVED`
-
-Recommendation: one `ACTIVE` configuration per company and cost model at a time for V1.
-
-Reason:
-
-- It is deterministic and easy for Negotiation to consume.
-- It avoids ambiguous overlapping effective periods.
-- Season/historical lookup can still happen by requesting a specific config code such as `FW26`.
-- Multiple effective-date active configs can be added later after real evidence.
-
-Recommended fields:
-
-- `id`
-- `company_id`
-- `cost_model_id`
-- `formula_version`
-- `code`
-- `name`
-- `status`
-- `base_config`: JSONB snapshot
-- `based_on_version_id`
-- `season`
-- `effective_from`
-- `effective_to`
-- `created_by`
-- `created_at`
-- `updated_by`
-- `updated_at`
-- `tested_by`
-- `tested_at`
-- `activated_by`
-- `activated_at`
-- `archived_at`
+- `id uuid primary key`
+- `company_id uuid references companies(id)`
+- `cost_model_id uuid references cost_models(id)`
+- `formula_version integer not null`
+- `config_code text not null`, e.g. `CURRENT`, `FW26`
+- `config_label text not null`
+- `lifecycle_status text not null`, one of `DRAFT`, `ACTIVE`, `ARCHIVED`
+- `base_config jsonb not null`
+- `based_on_config_version_id uuid`
+- optional `season_key`
+- optional `effective_from`, `effective_to`
+- created/updated/activated/archived metadata
+- `source_reference`
 - `notes`
 
-`season`, `effective_from` and `effective_to` are optional metadata, not required for every config.
+Required constraints:
 
-## 9. Variable Definition Design
+- unique `(company_id, cost_model_id, config_code)`
+- one active config per `(company_id, cost_model_id)`
+- `base_config` must be a JSON object
+- `formula_version > 0`
+- normalized `season_key` when present
 
-Variable definitions should remain hybrid:
+### `cost_config_overrides`
 
-- Canonical stable model metadata remains in application/domain code.
-- The database stores config values and optional snapshots of the model version used.
+Purpose: partial scoped assumptions on top of a config.
 
-Why:
+Required fields:
 
-- Stable formula metadata is code-owned.
-- UI can still render from model metadata exposed by the app.
-- The DB avoids becoming a generic formula/rules engine.
-- Version snapshots keep historical values explainable.
+- `id uuid primary key`
+- `config_version_id uuid references cost_config_versions(id)`
+- `season_key text not null`
+- `origin_key text not null`
+- `category_key text not null`
+- `values jsonb not null`
+- `source_reference text`
+- created/updated metadata
 
-Model 001 variable definitions include:
+Required constraints:
 
-- `insuranceRate`
-- `grossWeightUplift`
-- `rubExchangeRate`
-- `eurExchangeRate`
-- `vatRate`
-- `targetImu`
-- `fallbackDutyRate`
-- `defaultOrigin`
-- `defaultTransportMode`
+- unique `(config_version_id, season_key, origin_key, category_key)`
+- `values` must be a JSON object
+- `season_key` and `origin_key` are uppercase trimmed keys
+- category must be trimmed and non-empty
 
-Future metadata may include editability, type, unit, validation and allowed scopes.
+### `cost_additional_components`
 
-## 10. Variable Value Design
+Purpose: optional structured safe cost components.
 
-Two viable options were evaluated.
+Required fields:
 
-### Option A: normalized variable-value rows
+- `id uuid primary key`
+- `config_version_id uuid references cost_config_versions(id)`
+- `name text not null`
+- `calculation_type text not null`
+- `value numeric not null`
+- optional `currency`
+- optional `percentage_basis`
+- `enabled boolean`
+- optional V1 scope fields: `season_key`, `origin_key`, `category_key`
+- `source_reference`
+- created/updated metadata
 
-Tables:
+Allowed calculation types:
 
-- `cost_config_versions`
-- `cost_config_values`
-- `cost_config_overrides`
-- `cost_config_override_values`
+- `FIXED_PER_UNIT`
+- `PERCENTAGE_OF_BASE`
 
-Benefits:
+Allowed percentage bases:
 
-- Strong queryability per variable.
-- Fine-grained uniqueness and audit.
-- Easy to diff a single variable.
+- `FOB`
+- `FOB_PLUS_FREIGHT`
+- `LANDED_BEFORE_ADDITIONAL_COSTS`
 
-Costs:
+No raw expressions, JavaScript, SQL, custom scripting or formula strings.
 
-- More tables and joins.
-- Higher RLS complexity.
-- More write paths.
-- More UI mapping work.
-- Overbuilt for the current single proven model.
+## 8. Model Representation
 
-### Option B: versioned JSONB config plus normalized override rows
+Cost Model 001 is represented by stable code:
 
-Tables:
+- `cost-model-001`
 
-- `cost_config_versions` with JSONB `base_config`
-- `cost_config_overrides` with JSONB `values`
-- `cost_additional_components` with structured rows
+Formula implementation remains in the costing domain code.
 
-Benefits:
+The DB stores:
 
-- Small table count.
-- Natural version snapshots.
-- Partial overrides stay simple.
-- Better fit for current Model 001 config shape.
-- Lower RLS and migration complexity.
-- Easy to instantiate from current defaults.
+- model identity
+- model availability
+- current formula version number
+- template key/reference
+- company-selected active configuration
 
-Costs:
+The DB must not store:
 
-- Less SQL-native per-variable querying.
-- Requires server-side JSON validation.
-- Needs careful JSONB shape checks.
+- JavaScript
+- SQL formula implementations
+- arbitrary expressions
+- customer-defined executable code
 
-Recommendation: Option B.
+## 9. Formula Version
 
-Reason: STDTEX has one characterized cost model today and proven need for versioned assumptions plus scoped partial overrides. Option B is auditable and extensible without building an enterprise meta-model too early.
+Formula version changes only when the mathematical/business logic changes.
 
-## 11. Scoped Override Design
+Cost Model 001 currently has:
 
-Recommended V1:
+- formula version `1`
 
-- Explicit normalized scope columns for proven dimensions:
-  - `season_key`
-  - `origin_key`
-  - `category_key`
-- Optional future columns:
-  - `department_key`
-  - `destination_key`
-  - `transport_mode_key`
-- JSONB `values` for the partial fields changed by the override.
+Use column name:
 
-Why explicit columns over a generic scope object:
+- `formula_version`
 
-- Safer uniqueness constraints.
-- Easier indexes.
-- Easier conflict detection.
-- Better RLS and admin debugging.
-- Avoids an arbitrary rules engine.
+Avoid generic `version` for this concept.
 
-V1 should use normalized text keys:
+## 10. Config Version
 
-- Season: uppercase trimmed code, e.g. `FW26`.
-- Origin: uppercase trimmed stable country/origin key, e.g. `VIETNAM`.
-- Category: trimmed exact category key, e.g. `Pants Commercial`.
+Configuration version changes when assumptions/rates change while formula logic stays the same.
 
-Future normalized taxonomy can replace these text keys with FK columns later.
+Use:
 
-## 12. Scope Precedence
+- `config_code`
+- `config_label`
+- `lifecycle_status`
 
-V1 precedence:
+Examples:
 
-1. Base configuration.
-2. Matching override with proven scope.
+- `CURRENT`
+- `FW26`
+- `SS27-DRAFT`
 
-Within overrides, avoid ambiguity by preventing overlapping rows for the same scope and config. Do not invent department/destination/transport precedence until evidence requires it.
+Avoid generic `version` because it confuses formula version and config version.
 
-If future scopes are added, define numeric `scope_rank` in application code and require deterministic ordering. Never allow two matching overrides with the same rank and same variable keys.
+## 11. Template Strategy
 
-## 13. Conflict Handling
+Recommendation: hybrid with application/domain template as source of truth.
 
-Database constraints should prevent exact duplicate override scopes:
+The canonical Model 001 defaults already live in `src/features/costing/costModel.js`.
 
-- unique `(config_version_id, season_key, origin_key, category_key, department_key, destination_key, transport_mode_key)`
+When a company enables Model 001:
 
-Because nullable columns complicate uniqueness, use generated/coalesced normalized keys or expression indexes in the actual migration design.
+1. Backend reads the canonical domain template for `cost-model-001/current`.
+2. Backend creates a complete company-owned config snapshot.
+3. Company Admin edits a duplicate draft later if needed.
 
-Server validation should also reject:
+Do not create a second competing platform-default JSON blob that can drift from domain code.
 
-- two overrides that set the same variable for the same effective scope
-- invalid percentage ranges
-- invalid empty required values
-- unsupported variable keys for the selected cost model
+`cost_models.template_key` is enough for the database to identify which domain template to clone.
 
-## 14. Partial Override Behavior
+## 12. Base JSONB Strategy
 
-Overrides store only changed values.
+`base_config` should be JSONB because Model 001 and future Model 002 may have different variable sets.
 
-Example base config includes VAT, FX, insurance, duty defaults, freight, target IMU.
+Validation must not rely only on frontend checks.
 
-Example override:
+Recommended validation layers:
+
+- domain variable metadata in application code
+- controlled server command validation
+- light DB structural constraints
+
+PostgreSQL should verify shape and ownership, not become a universal JSON schema engine.
+
+## 13. Override Representation
+
+Use explicit V1 columns:
+
+- `season_key`
+- `origin_key`
+- `category_key`
+
+Use JSONB `values` only for the partial changed values.
+
+Example:
 
 ```json
 {
@@ -365,530 +346,516 @@ Example override:
 }
 ```
 
-Everything else inherits from base config.
+Values not present inherit from `base_config`.
 
-The resolver should produce a complete effective configuration before calling the evaluator.
+## 14. Season Design
 
-## 15. Additional Cost Design
+Season is a normalized text key.
 
-V1 should support structured safe cost components only.
+Rules:
 
-Allowed calculation types:
+- trim whitespace
+- uppercase
+- do not infer from dates
+- do not guess from current date
 
-- `FIXED_PER_UNIT`
-- `PERCENTAGE_OF_BASE`
+Examples:
 
-Recommended fields:
+- `FW26`
+- `SS27`
 
-- `id`
-- `config_version_id`
-- `name`
-- `calculation_type`
-- `value`
-- `currency`
-- `percentage_basis`
-- `enabled`
-- `scope` columns matching override scope columns
-- `created_by`
-- `created_at`
-- `updated_at`
+Future effective dates may exist, but they are not a replacement for season evidence.
 
-Do not allow raw JavaScript, SQL, custom scripts, arbitrary formulas or expression strings.
+## 15. Origin Design
 
-## 16. Season, Date And Historical Handling
+Origin remains a normalized text key in V1.
 
-Season is the current proven temporal key. Store it as normalized text such as `FW26`.
+Rules:
 
-Do not infer dates from season.
+- trim whitespace
+- uppercase
+- reject blank origin in overrides
 
-Keep optional `effective_from` and `effective_to` on configuration versions and additional components so future mid-season FX or duty changes are not blocked.
+Examples:
 
-Historical configs such as `FW26` can be imported as `ARCHIVED` or `TESTED`, not necessarily active.
+- `VIETNAM`
+- `BANGLADESH`
 
-## 17. Snapshot Vs Live Recalculation
+Do not introduce a country master migration in Costing V1.
 
-Recommendation: old buying decisions should not silently recalculate when a config changes.
+## 16. Category Design
 
-Future snapshots should record:
+Category remains text in V1 because `negotiation_rows.cat` is text today.
 
-- `cost_model_id`
+Rules:
+
+- trim whitespace
+- reject blank category in overrides
+- preserve existing display casing for category matching
+
+Do not invent a new enterprise taxonomy during Costing V1.
+
+## 17. Future Effective Dates
+
+Do not require effective dates in V1.
+
+If added later, the clearest first place is `cost_config_versions` because dates describe the assumption snapshot's validity window.
+
+Avoid separate date windows on both config and override until there is evidence for mid-config temporal overrides.
+
+## 18. Config Lifecycle
+
+Minimum lifecycle:
+
+- `DRAFT`
+- `ACTIVE`
+- `ARCHIVED`
+
+`TESTED` is removed as a persisted status. Testing should create a validation result, warning or UI state, not a durable lifecycle status.
+
+## 19. Immutability
+
+Rules:
+
+- `DRAFT`: editable through controlled commands.
+- `ACTIVE`: not directly editable.
+- `ARCHIVED`: not editable.
+
+Normal flow:
+
+1. Duplicate active config into draft.
+2. Edit draft.
+3. Test draft.
+4. Activate draft atomically.
+5. Archive previous active config in the same transaction.
+
+Enforcement belongs in a minimal combination of:
+
+- controlled RPCs
+- strict RLS
+- optional DB trigger/check for immutable states
+
+## 20. One-Active-Config Rule
+
+V1 rule:
+
+One active config per company plus cost model.
+
+Constraint:
+
+- unique partial index on `(company_id, cost_model_id)` where `lifecycle_status = 'ACTIVE'`
+
+Do not implement multiple simultaneous effective configurations in V1.
+
+## 21. Historical Config Rule
+
+Historical configurations such as FW26 are company-scoped evidence.
+
+They must not become global platform defaults.
+
+They should be stored as:
+
+- `ARCHIVED` historical config
+- or imported validation fixture/config for the relevant company
+
+They must not leak commercial rates to unrelated companies.
+
+## 22. Additional Costs
+
+Keep V1 narrow:
+
+- one optional structured table
+- no custom formulas
+- no generic cost engine
+
+Only include fields justified by product needs:
+
+- fixed per unit
+- percentage of a defined basis
+
+## 23. Calculation Trace
+
+No calculation ledger in V1.
+
+Future result snapshots should record:
+
+- `cost_model_code`
 - `formula_version`
 - `config_version_id`
 - `cost_source_type`
 - `calculated_at`
-- calculation context
-- summary result
+- calculation context/result JSON
 
-Fresh calculations can use the current `ACTIVE` version. Historical decisions remain traceable to the version used at the time.
+Old buying decisions should not silently change when a new config activates.
 
-Do not create `style_cost_snapshots` in V1 unless a workflow needs persisted results.
+## 24. Deletion Semantics
 
-## 18. Company Model Selector
+Recommended:
 
-Recommended `company_costing_settings` contract:
+- unused `DRAFT`: may hard delete
+- `ACTIVE`: no hard delete
+- historically referenced config: no hard delete
+- `ARCHIVED`: preserved
 
-- `company_id`
-- `costing_enabled`
-- `cost_source_type`
-- `active_cost_model_id`
-- `active_config_version_id`
-- `fallback_behavior`
-- `updated_by`
-- `updated_at`
+Because V1 has no production usage yet, staging rollback may remove all isolated costing infrastructure. After production usage, rollback must preserve referenced config history.
 
-The selector can later show:
+## 25. Access Matrix
 
-- FOB only
-- Cost Model 001
-- Cost Model 002
-- ERP connector
-- Custom API
-- Third-party
+| Actor | cost_models | company_costing_settings | cost_config_versions | overrides | additional costs | audit_logs |
+| --- | --- | --- | --- | --- | --- | --- |
+| ANON | No access | No access | No access | No access | No access | No access |
+| Company Member | No raw config access by default | No raw config access by default | No raw config access by default | No access | No access | No access |
+| Company Admin | Read own company settings | Manage own company through commands | Manage own company drafts through commands | Manage own company draft overrides through commands | Manage own company draft costs through commands | Indirect events only |
+| Platform Admin | Global read/manage | Global read/manage | Global read/manage | Global read/manage | Global read/manage | Global support/debug |
+| Backend/Service | Controlled command execution | Controlled command execution | Controlled command execution | Controlled command execution | Controlled command execution | Insert events |
 
-## 19. Model 001 Default Loading
+Buyer/member product surfaces should consume resolved results, not raw configuration tables.
 
-When a company enables Cost Model 001:
+## 26. RLS Strategy
 
-1. Read Model 001 default config from application/domain template.
-2. Create a company-owned config version with all current values populated.
-3. Store the config as a full `base_config` JSONB snapshot.
-4. Link `company_costing_settings.active_config_version_id`.
+Design only; no policies are implemented in this phase.
 
-Recommendation: initial Model 001 default should become `ACTIVE` immediately when enabled.
+Rules:
+
+- enable RLS on all costing tables before API exposure
+- no anon policies
+- no `USING (true)`
+- avoid `TO public`
+- do not authorize from user-editable profile metadata
+- prefer hardened helpers:
+  - `private.current_is_platform_admin()`
+  - `private.current_is_company_admin_for(company_id)`
+- sensitive writes go through command RPCs
+- direct table updates are either denied or restricted to platform-admin support paths
+
+Production currently still contains some legacy policy patterns such as email-based platform admin checks. Costing should not copy those patterns; it should align with the hardened Organization Security direction.
+
+## 27. Command/RPC Layer
+
+Minimal proposed commands:
+
+### `set_company_cost_source(company_id, cost_source_type, cost_model_code default null)`
+
+Caller:
+
+- Company Admin for own company
+- Platform Admin
+
+Validates:
+
+- authenticated caller
+- company ownership/admin rights
+- supported source type
+- selected model availability
+- local config required only for `STDTEX_MODEL`
+
+Result:
+
+- updated company costing source
+- audit event
+
+### `create_cost_config_draft(company_id, cost_model_code, config_label, based_on_config_version_id default null)`
+
+Creates a complete `DRAFT` snapshot from canonical domain template or existing config.
+
+Validates:
+
+- caller authorization
+- model exists and is available
+- formula version compatibility
+- config code uniqueness
+- base config shape
+
+### `duplicate_cost_config(config_version_id, new_config_label)`
+
+Copies base config, overrides and additional components into a new `DRAFT`.
+
+### `update_cost_config_draft(config_version_id, patch jsonb)`
+
+Validates:
+
+- caller authorization
+- config belongs to caller company
+- config is `DRAFT`
+- known Model 001 variable keys
+- correct types and allowed ranges
+- no authorization fields in patch
+
+### `upsert_cost_override(config_version_id, scope jsonb, values jsonb)`
+
+Validates:
+
+- caller authorization
+- parent config is `DRAFT`
+- scope has season/origin/category
+- normalized scope keys
+- no duplicate/conflicting exact scope
+- known variable keys and types
+
+### `remove_cost_override(override_id)`
+
+Validates:
+
+- caller authorization
+- parent config is `DRAFT`
+
+### `add_cost_component`, `update_cost_component`, `remove_cost_component`
+
+Validates:
+
+- caller authorization
+- parent config is `DRAFT`
+- supported calculation type
+- allowed basis
+- non-negative value
+
+### `activate_cost_config(config_version_id)`
+
+Must be atomic:
+
+1. lock company costing settings/config rows
+2. validate DRAFT status
+3. validate model availability
+4. validate formula version
+5. validate base config and overrides
+6. archive previous active config for same company/model
+7. activate selected config
+8. update `company_costing_settings`
+9. write audit event
+10. commit or rollback all
+
+### `archive_cost_config(config_version_id)`
+
+Refuse archiving the current active config unless replacement activation happens in the same transaction.
+
+## 28. Calculation Execution Layer
+
+Postgres owns:
+
+- config storage
+- version lifecycle
+- authorization
+- activation transaction
+
+Costing domain/connector owns:
+
+- formula execution
+- effective config resolution
+- test calculation execution
+- result mapping
+
+`test_cost_config` should call the same Costing domain implementation, likely through an application service or Supabase Edge Function. Do not duplicate Cost Model 001 formulas in SQL.
+
+## 29. Audit Strategy
+
+Reuse existing `audit_logs`.
+
+Suggested events:
+
+- `COST_SOURCE_CHANGED`
+- `COST_CONFIG_CREATED`
+- `COST_CONFIG_UPDATED`
+- `COST_OVERRIDE_UPSERTED`
+- `COST_OVERRIDE_REMOVED`
+- `COST_COMPONENT_ADDED`
+- `COST_COMPONENT_UPDATED`
+- `COST_COMPONENT_REMOVED`
+- `COST_CONFIG_ACTIVATED`
+- `COST_CONFIG_ARCHIVED`
+
+No separate costing audit table in V1.
+
+## 30. Model 001 Seed Strategy
+
+Future seed:
+
+- `code = cost-model-001`
+- `source_type = STDTEX_MODEL`
+- `current_formula_version = 1`
+- `template_key = cost-model-001/current`
+
+Do not persist formula source code.
+
+## 31. CURRENT Creation
+
+Recommendation:
+
+Initial Model 001 enablement should auto-create and auto-activate a company-owned `CURRENT` config because it reproduces existing canonical defaults.
 
 Reason:
 
-- It reproduces current Model 001 behavior with zero manual setup.
-- A company can then duplicate it into a Draft for edits.
-- This avoids an empty or broken costing state.
+- avoids empty/broken costing state
+- keeps current behavior available immediately
+- lets Company Admin duplicate active config into draft later
 
-For companies that do not enable Model 001, fallback remains `FOB_ONLY`.
+Open product decision:
 
-## 20. Immutability Rules
+If enterprise governance requires explicit approval, switch this to draft-first before staging migration.
 
-`ACTIVE` and `ARCHIVED` configurations should not be edited directly.
+## 32. FW26 Handling
 
-Normal edit flow:
+FW26 is historical evidence, not global default.
 
-1. Active v1
-2. Duplicate to Draft v2
-3. Edit Draft v2
-4. Test Draft v2
-5. Activate v2
-6. Archive v1 or mark it inactive with historical trace
+It should be imported only for the relevant company context as:
 
-Database/RPC should reject direct mutation of `ACTIVE` or `ARCHIVED` rows except controlled status transitions.
+- `config_code = FW26`
+- `lifecycle_status = ARCHIVED`
+- `formula_version = 1`
+- base config equivalent to current defaults plus scoped duty overrides
 
-## 21. Permissions Matrix
+The exact FW26 commercial overrides must not leak to unrelated companies.
 
-Company Admin:
+## 33. FOB-Only Handling
 
-- View own company costing settings.
-- Create draft configurations for own company.
-- Edit draft variables, overrides and additional costs.
-- Test draft configurations.
-- Activate validated drafts.
-- Archive own company configs where permitted.
-- Cannot edit another company.
-- Cannot modify platform formula definitions.
-- Cannot silently mutate historical versions.
+No config means:
 
-Company Member / Buyer:
+- STDTEX still works
+- FOB remains the native commercial cost field
+- `company_costing_settings.cost_source_type = FOB_ONLY`
 
-- Read calculation results and high-level provenance where product requires it.
-- Should not edit costing configuration.
+Do not create a fake FOB cost model.
 
-Platform Admin:
+## 34. ERP Future Compatibility
 
-- Global read across company costing settings.
-- Manage platform cost model catalog and default templates.
-- Support/debug integrations.
-- May manage company configurations through controlled admin APIs.
-- Does not need company membership.
+ERP must be represented as a company cost source without requiring local editable Model 001 config rows.
 
-Future delegated permissions:
+This is why `company_costing_settings.cost_source_type` is separate from `cost_config_versions`.
 
-- Finance
-- Logistics
-- Costing Manager
+## 35. Model 002 Future Compatibility
 
-Do not create these roles now. Design RPC authorization so later capabilities can be delegated without redefining all tables.
+Model 002 can expose a different variable set without adding columns because:
 
-## 22. RLS Design
+- `base_config` is JSONB
+- allowed variables are validated by model metadata in domain/server code
+- overrides store partial JSONB values
+- formula implementation remains outside DB
 
-Conceptual rules:
+Do not create Model 002 now.
 
-- No anon access.
-- Company members can read only their own company settings when product behavior requires it.
-- Company Admin can manage own-company drafts.
-- Company Admin cannot write another company's config.
-- Platform Admin has global access without company membership.
-- All sensitive writes should go through controlled RPCs.
-- No `USING (true)` policies.
-- Do not authorize from user-editable metadata.
+## 36. Option Scores
 
-Policies should align with the existing hardened organization security model and trusted membership tables.
+Score: 1 worst, 5 best.
 
-## 23. RPC / Server Command Design
+| Criterion | Option A normalized variable rows | Option B JSONB base config + normalized overrides |
+| --- | ---: | ---: |
+| Simplicity | 2 | 5 |
+| Model 002 flexibility | 3 | 5 |
+| Versioning | 4 | 5 |
+| Override support | 4 | 4 |
+| Company Admin UX | 3 | 5 |
+| RLS complexity | 2 | 4 |
+| Queryability | 5 | 3 |
+| Auditability | 4 | 4 |
+| Migration effort | 2 | 5 |
+| Overengineering risk | 2 | 4 |
 
-Future sensitive writes should use controlled RPCs:
+Final recommendation:
 
-- `set_company_cost_source`
-- `enable_company_cost_model`
-- `create_cost_config_version`
-- `duplicate_cost_config_version`
-- `update_cost_config_base`
-- `upsert_cost_config_override`
-- `remove_cost_config_override`
-- `add_cost_component`
-- `update_cost_component`
-- `remove_cost_component`
-- `test_cost_config`
-- `activate_cost_config_version`
-- `archive_cost_config_version`
+Option B, with explicit V1 override columns and command-layer validation.
 
-RPCs must validate:
+## 37. Red-Team Results
 
-- current user permissions
-- company scope
-- config status
-- model compatibility
-- variable keys
-- value ranges
-- override conflicts
+### Cross-company
 
-## 24. Activation Transaction
+Prevented by:
 
-Activation must be atomic:
+- `company_id` on `company_costing_settings`
+- `company_id` on `cost_config_versions`
+- command validation for active config ownership
+- company-admin helper authorization
+- no direct arbitrary writes
 
-1. Validate draft status and config payload.
-2. Confirm no conflicts.
-3. Mark existing active config as archived or inactive.
-4. Mark selected draft as active.
-5. Update `company_costing_settings.active_config_version_id`.
-6. Write audit log.
-7. Commit as one transaction.
+Future migration must add a trigger or RPC-only enforcement to prevent `company_costing_settings.active_config_version_id` from pointing to another company's config.
 
-If any step fails, nothing changes.
+### Versioning
 
-## 25. Test Before Activate
+Expected prevention:
 
-`test_cost_config` should accept:
+- edit active config: rejected by command validation/immutability trigger
+- edit archived config: rejected
+- delete active config: rejected
+- duplicate active config: allowed into new draft
+- activate same config twice: idempotent no-op or controlled error
+- two active configs: rejected by unique partial index
+- activate config from wrong model: rejected by activation command
+- formula version mismatch: rejected by activation command
 
-- draft config id
-- sample style inputs
-- optional calculation context
+### Overrides
 
-It returns:
+Expected prevention:
 
-- effective config trace
-- calculation result
-- validation warnings/errors
-
-It should reuse `CostingService` and the Cost Model evaluator. Do not duplicate formula logic in SQL.
-
-## 26. Recommended Future Tables
-
-### `cost_models`
-
-Purpose: platform catalog of available cost models/sources.
-
-Primary key: `id uuid`
-
-Important columns:
-
-- `code text unique not null`
-- `name text not null`
-- `description text`
-- `source_type text not null`
-- `status text not null default 'AVAILABLE'`
-- `current_formula_version integer`
-- `created_at timestamptz`
-- `updated_at timestamptz`
-
-Constraints:
-
-- source type enum/check
-- status enum/check
-
-RLS:
-
-- authenticated read where available
-- Platform Admin writes only
-
-### `company_costing_settings`
-
-Purpose: active costing choice per company.
-
-Primary key: `company_id uuid`
-
-Foreign keys:
-
-- `company_id -> companies.id`
-- `active_cost_model_id -> cost_models.id`
-- `active_config_version_id -> cost_config_versions.id`
-
-Important columns:
-
-- `costing_enabled boolean`
-- `cost_source_type text`
-- `fallback_behavior text`
-- `updated_by uuid`
-- `updated_at timestamptz`
-
-Constraints:
-
-- one row per company
-- active config must belong to same company, enforced through RPC/trigger if needed
-
-RLS:
-
-- own company read
-- own company Company Admin managed through RPC
-- Platform Admin global
-
-### `cost_config_versions`
-
-Purpose: immutable/versioned assumption sets.
-
-Primary key: `id uuid`
-
-Foreign keys:
-
-- `company_id -> companies.id`
-- `cost_model_id -> cost_models.id`
-- `based_on_version_id -> cost_config_versions.id`
-
-Important columns:
-
-- `formula_version integer not null`
-- `code text not null`
-- `name text not null`
-- `status text not null`
-- `base_config jsonb not null`
-- `season_key text`
-- `effective_from timestamptz`
-- `effective_to timestamptz`
-- `created_by uuid`
-- `created_at timestamptz`
-- `updated_by uuid`
-- `updated_at timestamptz`
-- `tested_by uuid`
-- `tested_at timestamptz`
-- `activated_by uuid`
-- `activated_at timestamptz`
-- `archived_at timestamptz`
-- `notes text`
-
-Constraints:
-
-- unique `(company_id, cost_model_id, code)`
-- one active config per `(company_id, cost_model_id)`
-- status enum/check
-- `base_config` must be an object
-
-RLS:
-
-- own company read
-- draft writes through RPC
-- Platform Admin global
-
-### `cost_config_overrides`
-
-Purpose: partial scoped values applied on top of a config version.
-
-Primary key: `id uuid`
-
-Foreign keys:
-
-- `config_version_id -> cost_config_versions.id on delete cascade`
-
-Important columns:
-
-- `season_key text`
-- `origin_key text`
-- `category_key text`
-- `department_key text`
-- `destination_key text`
-- `transport_mode_key text`
-- `values jsonb not null`
-- `source text`
-- `created_by uuid`
-- `created_at timestamptz`
-- `updated_at timestamptz`
-
-Constraints:
-
-- `values` must be an object
-- no duplicate scope per config
-- supported keys only, enforced by RPC/server validation
-
-Indexes:
-
-- `(config_version_id)`
-- `(config_version_id, season_key, origin_key, category_key)`
-- future indexes only when new dimensions are proven
-
-RLS:
-
-- inherits config company scope
-- writes through RPC
-
-### `cost_additional_components`
-
-Purpose: structured safe company cost components.
-
-Primary key: `id uuid`
-
-Foreign keys:
-
-- `config_version_id -> cost_config_versions.id on delete cascade`
-
-Important columns:
-
-- `name text not null`
-- `calculation_type text not null`
-- `value numeric not null`
-- `currency text`
-- `percentage_basis text`
-- `enabled boolean default true`
-- `season_key text`
-- `origin_key text`
-- `category_key text`
-- `department_key text`
-- `destination_key text`
-- `transport_mode_key text`
-- `created_by uuid`
-- `created_at timestamptz`
-- `updated_at timestamptz`
-
-Constraints:
-
-- calculation type check
-- value range checks
-- no arbitrary formula fields
-
-RLS:
-
-- inherits config company scope
-- writes through RPC
-
-### Future optional table: `style_cost_snapshots`
-
-Do not create in V1. Future use only when persisted calculation snapshots are required.
-
-Potential fields:
-
-- `style_id`
-- `company_id`
-- `cost_model_id`
-- `formula_version`
-- `config_version_id`
-- `cost_source_type`
-- `calculation_context jsonb`
-- `result jsonb`
-- `calculated_at`
-
-## 27. Indexes And Constraints Summary
-
-Required V1 indexes:
-
-- `cost_models(code)`
-- `company_costing_settings(company_id)`
-- `cost_config_versions(company_id, cost_model_id, status)`
-- unique active config partial index on `(company_id, cost_model_id)` where status is `ACTIVE`
-- unique config code index on `(company_id, cost_model_id, code)`
-- `cost_config_overrides(config_version_id, season_key, origin_key, category_key)`
-- `cost_additional_components(config_version_id)`
-
-Required V1 constraints:
-
-- status checks
-- source type checks
-- calculation type checks
-- JSONB object checks
-- no duplicate override scopes
-- immutable statuses enforced through RPC and optional triggers
-
-## 28. Relationship Diagram
-
-```mermaid
-erDiagram
-  companies ||--o| company_costing_settings : has
-  cost_models ||--o{ cost_config_versions : defines
-  companies ||--o{ cost_config_versions : owns
-  cost_config_versions ||--o{ cost_config_overrides : resolves
-  cost_config_versions ||--o{ cost_additional_components : includes
-  company_costing_settings }o--|| cost_models : selects
-  company_costing_settings }o--|| cost_config_versions : activates
-```
-
-Calculation flow:
-
-```mermaid
-flowchart LR
-  A["Style input"] --> B["Company costing settings"]
-  B --> C["Active cost model"]
-  C --> D["Active config version"]
-  D --> E["Scoped override resolver"]
-  E --> F["Effective assumptions"]
-  F --> G["CostingService / Model evaluator"]
-  G --> H["Cost result + trace"]
-```
-
-## 29. Migration Strategy
-
-Future rollout sequence:
-
-1. Create schema in staging only.
-2. Seed Cost Model 001 catalog record.
-3. Seed or expose Model 001 default template from application code.
-4. Create company costing settings for test companies.
-5. Instantiate `CURRENT` values as company-specific config versions.
-6. Optionally import FW26 historical config as non-active historical config.
-7. Connect resolver to persisted config behind a fallback.
-8. Verify parity against current code defaults.
-9. Add Company Settings UI.
-10. Validate activation/test RPCs.
-11. Only then consider production migration.
-
-## 30. Fallback Behavior
-
-If DB-backed costing config is missing:
-
-- If company has not enabled costing: use `FOB_ONLY`.
-- If company enabled Cost Model 001 but config lookup fails: fail closed to explicit `NOT_AVAILABLE` with an error state, not silent invented values.
-- During migration only: application may temporarily fall back to code defaults for parity testing, but this must be logged/visible in validation.
-
-## 31. Company Admin UX Contract
-
-Future Settings -> Costing should show:
-
-- active source/model
-- current active config
-- variables grouped by General, FX, Tax, Duties, Freight, Logistics, Target
-- scoped overrides table
-- additional costs table
-- Test model action
-- Duplicate as Draft action
-- Activate Draft action
-- configuration history
-- audit trace
-
-Normal buyer workflows should remain simple and only see results/provenance.
-
-## 32. Open Product Decisions
-
-- Should some companies delegate costing management to Finance or Logistics roles?
-- Should initial Model 001 enablement be automatic for all companies or opt-in?
-- Should active configs eventually support effective date windows?
-- Should category and origin become normalized platform taxonomies before persisted costing?
-- What is the exact UI wording for estimated versus confirmed cost?
-- Which historical configurations should be imported first after FW26?
-
-## 33. Readiness Recommendation
-
-READY FOR REVIEW OF COSTING SETTINGS SCHEMA.
-
-Do not implement until this design is approved and the next phase explicitly authorizes staging schema work.
-
+- duplicate exact scope: unique key
+- wrong season: rejected by normalization/validation
+- empty origin/category: rejected
+- unknown category: warning or rejection according to domain metadata; do not create taxonomy yet
+- wrong value type: command validation
+- unknown variable key: command validation
+- FW26 affecting SS27: impossible unless scope matches `season_key = FW26`
+- case/space collisions: prevented by normalized season/origin and trimmed category checks
+
+### ERP
+
+Company with `cost_source_type = ERP` does not need local config rows.
+
+### Model 002
+
+Different variable set can live in JSONB with model-specific validation.
+
+## 38. Staging Migration Plan
+
+Next phase should create a migration draft only, then staging validation:
+
+1. baseline/checkpoint staging
+2. create costing tables
+3. enable RLS
+4. revoke anon and deny broad direct writes
+5. create or reuse hardened private helpers
+6. create command RPCs
+7. seed Model 001 identity/template reference
+8. create synthetic company draft/current config
+9. load CURRENT config
+10. run Model 001 parity
+11. load FW26 historical configuration
+12. validate scoped resolution
+13. run Company Admin JWT attack tests
+14. run normal-member attack tests
+15. run Platform Admin tests
+16. run activation transaction tests
+17. rollback
+18. reapply
+19. only then build frontend Settings
+
+## 39. Rollback Design
+
+Pre-production staging rollback:
+
+- export costing tables if test data matters
+- drop costing policies/RPCs/helpers that were introduced only for costing
+- drop costing indexes
+- drop costing tables in dependency order
+- verify no runtime references depend on them
+
+Post-production rollback concern:
+
+- do not orphan historical calculation/config references
+- archive/disable UI before destructive removal
+- preserve config history if any buying decisions reference it
+
+## 40. Genuine Product Decisions
+
+Only these require product approval:
+
+1. Initial Model 001 enablement:
+   - auto-active `CURRENT`
+   - or draft-first explicit activation
+2. Can Company Admin activate directly, or should a future Finance/Costing permission approve?
+3. Should Buyer see only estimated landed/IMU, or also model/config provenance?
+
+## 41. Readiness Recommendation
+
+READY TO CREATE COSTING SETTINGS STAGING MIGRATION DRAFT.
+
+Do not apply SQL yet.
+Do not build UI yet.
+Do not change runtime formulas.
+Do not change Negotiation.
