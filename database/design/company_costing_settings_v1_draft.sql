@@ -1,0 +1,143 @@
+-- STDTEX Company Costing Settings V1
+-- DESIGN ONLY
+-- DO NOT APPLY
+--
+-- Purpose:
+--   Review-only draft for future DB-backed company costing settings.
+--   This file is intentionally outside database/migrations.
+--
+-- Safety:
+--   Do not run this against staging or production without explicit approval.
+--   This draft does not replace Cost Model 001 formula code.
+--   This draft does not alter negotiation_rows.
+
+-- create table public.cost_models (
+--   id uuid primary key default gen_random_uuid(),
+--   code text not null unique,
+--   name text not null,
+--   description text,
+--   source_type text not null check (source_type in ('FOB_ONLY','STDTEX_MODEL','ERP','COMPANY_API','THIRD_PARTY')),
+--   status text not null default 'AVAILABLE' check (status in ('AVAILABLE','DEPRECATED','DISABLED')),
+--   current_formula_version integer,
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- create table public.company_costing_settings (
+--   company_id uuid primary key references public.companies(id) on delete cascade,
+--   costing_enabled boolean not null default false,
+--   cost_source_type text not null default 'FOB_ONLY' check (cost_source_type in ('FOB_ONLY','STDTEX_MODEL','ERP','COMPANY_API','THIRD_PARTY')),
+--   active_cost_model_id uuid references public.cost_models(id),
+--   active_config_version_id uuid,
+--   fallback_behavior text not null default 'FOB_ONLY' check (fallback_behavior in ('FOB_ONLY','NOT_AVAILABLE','CODE_DEFAULT_DURING_MIGRATION')),
+--   updated_by uuid references auth.users(id),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- create table public.cost_config_versions (
+--   id uuid primary key default gen_random_uuid(),
+--   company_id uuid not null references public.companies(id) on delete cascade,
+--   cost_model_id uuid not null references public.cost_models(id),
+--   formula_version integer not null,
+--   code text not null,
+--   name text not null,
+--   status text not null default 'DRAFT' check (status in ('DRAFT','TESTED','ACTIVE','ARCHIVED')),
+--   base_config jsonb not null check (jsonb_typeof(base_config) = 'object'),
+--   based_on_version_id uuid references public.cost_config_versions(id),
+--   season_key text,
+--   effective_from timestamptz,
+--   effective_to timestamptz,
+--   created_by uuid references auth.users(id),
+--   created_at timestamptz not null default now(),
+--   updated_by uuid references auth.users(id),
+--   updated_at timestamptz not null default now(),
+--   tested_by uuid references auth.users(id),
+--   tested_at timestamptz,
+--   activated_by uuid references auth.users(id),
+--   activated_at timestamptz,
+--   archived_at timestamptz,
+--   notes text,
+--   unique (company_id, cost_model_id, code)
+-- );
+
+-- create unique index cost_config_versions_one_active_per_model
+-- on public.cost_config_versions(company_id, cost_model_id)
+-- where status = 'ACTIVE';
+
+-- create index cost_config_versions_company_model_status_idx
+-- on public.cost_config_versions(company_id, cost_model_id, status);
+
+-- alter table public.company_costing_settings
+-- add constraint company_costing_settings_active_config_fkey
+-- foreign key (active_config_version_id) references public.cost_config_versions(id);
+
+-- create table public.cost_config_overrides (
+--   id uuid primary key default gen_random_uuid(),
+--   config_version_id uuid not null references public.cost_config_versions(id) on delete cascade,
+--   season_key text,
+--   origin_key text,
+--   category_key text,
+--   department_key text,
+--   destination_key text,
+--   transport_mode_key text,
+--   values jsonb not null check (jsonb_typeof(values) = 'object'),
+--   source text,
+--   created_by uuid references auth.users(id),
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- create index cost_config_overrides_lookup_idx
+-- on public.cost_config_overrides(config_version_id, season_key, origin_key, category_key);
+
+-- NOTE:
+--   Actual duplicate-scope protection should use generated/coalesced keys or an
+--   expression unique index because nullable scope columns need deterministic
+--   equality semantics.
+
+-- create table public.cost_additional_components (
+--   id uuid primary key default gen_random_uuid(),
+--   config_version_id uuid not null references public.cost_config_versions(id) on delete cascade,
+--   name text not null,
+--   calculation_type text not null check (calculation_type in ('FIXED_PER_UNIT','PERCENTAGE_OF_BASE')),
+--   value numeric not null,
+--   currency text,
+--   percentage_basis text,
+--   enabled boolean not null default true,
+--   season_key text,
+--   origin_key text,
+--   category_key text,
+--   department_key text,
+--   destination_key text,
+--   transport_mode_key text,
+--   created_by uuid references auth.users(id),
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- create index cost_additional_components_config_idx
+-- on public.cost_additional_components(config_version_id);
+
+-- RLS DESIGN NOTES ONLY:
+--   enable RLS on all tables before exposing them through Supabase API.
+--   no anon access.
+--   company members read only own company where product requires it.
+--   company admins manage own-company drafts through controlled RPCs.
+--   platform admins have global access without company membership.
+--   sensitive writes should be RPC-controlled and validated server-side.
+
+-- RPC DESIGN NOTES ONLY:
+--   set_company_cost_source
+--   enable_company_cost_model
+--   create_cost_config_version
+--   duplicate_cost_config_version
+--   update_cost_config_base
+--   upsert_cost_config_override
+--   remove_cost_config_override
+--   add_cost_component
+--   update_cost_component
+--   remove_cost_component
+--   test_cost_config
+--   activate_cost_config_version
+--   archive_cost_config_version
+
