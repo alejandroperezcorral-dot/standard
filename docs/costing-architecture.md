@@ -236,13 +236,17 @@ FUTURE, NOT IMPLEMENTED: configuration should resolve through:
 1. model default
 2. department override
 3. category override
-4. optional explicit style override later
+4. origin + category override
+5. time-versioned effective value
+6. optional explicit style override later
 
 The most specific configured value wins.
 
 Departments and categories must come from company configuration/domain data. They must not be hardcoded into the costing engine.
 
 Do not duplicate a full model per department/category. Use base configuration plus scoped overrides.
+
+Historical FW26 bottoms duty validation provides evidence that duty configuration needs origin/category and time-versioned override support. The repeated differences were in `VIETNAM / Pants Commercial` and `BANGLADESH / Jeans Color`; the formula structure itself remained the same max fixed-vs-percentage duty method.
 
 ## Additional Cost Components
 

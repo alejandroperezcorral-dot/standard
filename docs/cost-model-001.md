@@ -390,6 +390,94 @@ The mismatches are concentrated in duty-driven landed cost and IMU differences:
 
 The workbook therefore validates important parts of Model 001 methodology, especially freight allocation, transit-day lookup, retail/VAT/LDP IMU basis and the overall duty branch structure. It also proves that duty rows and possibly period/company/category assumptions require a second pass before declaring the model historically validated.
 
+### FW26 Bottoms Duty Gap Investigation
+
+The 15 duty-gap records were isolated locally in ignored validation storage:
+
+- `13` records with historical duty values that differ from Model 001.
+- `2` records where the historical duty reference is missing.
+
+For all `13` true duty mismatches:
+
+- the duty difference exactly explains the LDP difference;
+- the LDP difference exactly explains the IMU difference.
+
+Therefore no evidence supports changing the LDP or IMU formulas in this phase.
+
+Original workbook duty formula pattern:
+
+`MAX(net_weight_kg * EUR/USD * fixed_duty, (FOB + freight_per_unit) * duty_percent)`
+
+The formula references:
+
+- `PLANIFICACION` row net garment weight;
+- `Control panel GJ!B15` for EUR/USD;
+- `Duty Calculator GJ` origin/category fixed duty;
+- `Duty Calculator GJ` origin/category duty percentage;
+- `Total Product cost (FOB)`;
+- `Transport costs new`.
+
+Category and origin normalization were audited for the affected groups:
+
+| Field | Result |
+| --- | --- |
+| `Pants Commercial` | Exact trimmed ASCII match. |
+| `Jct Nondenim` | Exact trimmed ASCII match. |
+| `Jeans Color` | Exact trimmed ASCII match. |
+| `Vietnam` | Exact uppercase mapping to `VIETNAM`. |
+| `Bangladesh` | Exact uppercase mapping to `BANGLADESH`. |
+
+No evidence points to an adapter mapping, category normalization, or origin normalization error.
+
+Book1.xlsx was audited as an assumption reference. It matches the current Model 001 duty table for the mismatch groups, while the FW26 bottoms workbook contains different duty values. That makes the current gap a historical-period/source duty-table difference, not a formula difference.
+
+Historical duty matrix from the FW26 workbook:
+
+| Origin | Department | Category | Historical method | Historical fixed duty | Historical percent duty | Current Model 001 / Book1 | Root cause |
+| --- | --- | --- | --- | ---: | ---: | --- | --- |
+| `VIETNAM` | `PANTS` | `Pants Commercial` | Fixed per net kg | `2.2` EUR/kg | `0%` | `0` EUR/kg, `0%` | `HISTORICAL_PERIOD_OVERRIDE` |
+| `BANGLADESH` | `JEANS` | `Jeans Color` | Max fixed or percentage | `1.9` EUR/kg | `10%` | `2.25` EUR/kg, `10%` | `HISTORICAL_PERIOD_OVERRIDE` |
+| `VIETNAM` | `JACKETS` | `Jct Nondenim` | Max fixed or percentage | `2.25` EUR/kg | `10%` | same as FW26 | `REFERENCE_MISSING` for two rows |
+
+The `13%` fallback duty was not involved in these gaps. Every affected record has an exact current origin/category duty row.
+
+Root-cause counts:
+
+| Root cause | Records |
+| --- | ---: |
+| `HISTORICAL_PERIOD_OVERRIDE` | `13` |
+| `REFERENCE_MISSING` | `2` |
+
+Proven configuration scope:
+
+| Dimension | Evidence |
+| --- | --- |
+| Origin + category override | Required by repeated FW26 duty-table differences. |
+| Time-versioned value | Required because Book1 and current Model 001 match each other while FW26 differs. |
+| Formula rule | No change proven; formula structure remains max fixed-vs-percent. |
+
+Proposed correction before implementation:
+
+| Current Model 001 behavior | Historical FW26 behavior | Evidence source | Affected records | Root cause | Proposed config/formula change | Scope | Runtime impact |
+| --- | --- | --- | ---: | --- | --- | --- | --- |
+| `VIETNAM / Pants Commercial` duty is `0` fixed and `0%`. | `2.2` EUR/kg fixed and `0%`. | FW26 `Duty Calculator GJ` row 300 plus repeated PLANIFICACION formulas. | `9` | `HISTORICAL_PERIOD_OVERRIDE` | Add time-versioned origin/category duty config for the FW26 period. Do not hardcode evaluator condition. | `ORIGIN_CATEGORY_OVERRIDE + TIME_VERSIONED` | Would increase duty/LDP and lower IMU for current Vietnam Pants Commercial scenarios if applied globally, so must not be applied to current runtime without version/effective-date resolution. |
+| `BANGLADESH / Jeans Color` fixed duty is `2.25` EUR/kg and `10%`. | `1.9` EUR/kg and `10%`. | FW26 `Duty Calculator GJ` row 67 plus repeated PLANIFICACION formulas. | `4` | `HISTORICAL_PERIOD_OVERRIDE` | Add time-versioned origin/category duty config for the FW26 period. Do not hardcode evaluator condition. | `ORIGIN_CATEGORY_OVERRIDE + TIME_VERSIONED` | Would reduce fixed-duty branch output for current Bangladesh Jeans Color scenarios if applied globally, so must not be applied to current runtime without version/effective-date resolution. |
+| `VIETNAM / Jct Nondenim` matches FW26 table. | Duty reference missing in two style rows. | FW26 `Duty Calculator GJ` row 290 and blank/missing PLANIFICACION duty references. | `2` | `REFERENCE_MISSING` | Do not infer historical reference values. Keep as missing references. | N/A | None. |
+
+No Model 001 correction is implemented yet because the proven fix is not a simple global formula correction. The evidence points to time-versioned duty configuration, and applying the FW26 values globally would change current runtime calculations.
+
+A local full rerun of all `97` FW26 bottoms rows using only the proposed historical duty values produced:
+
+| Output | Comparisons | Exact matches | Mismatches | Reference missing | Max absolute difference |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Landed cost | `97` | `95` | `2` | `0` | `1.827` |
+| IMU | `97` | `95` | `2` | `0` | `0.04542481543224586` |
+| Freight per unit | `97` | `97` | `0` | `0` | `4.440892098500626e-16` |
+| Duty | `97` | `95` | `0` | `2` | `4.440892098500626e-16` |
+| Transit days | `97` | `97` | `0` | `0` | `0` |
+
+The two remaining records are `VIETNAM / JACKETS / Jct Nondenim` rows where the source workbook provides LDP and IMU references but no historical duty formula and no cached historical duty value. Model 001, Book1 and the FW26 duty calculator table all agree on `2.25` EUR/kg and `10%` for this origin/category, producing `1.827` duty. Because the historical duty reference is missing, these two rows should remain excluded from correction evidence instead of being filled by inference.
+
 ### Required Historical Validation Record
 
 The validation harness expects normalized records with:
