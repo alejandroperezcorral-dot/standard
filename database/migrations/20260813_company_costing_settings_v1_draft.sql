@@ -314,6 +314,12 @@ revoke all on table public.cost_config_versions from anon;
 revoke all on table public.cost_config_overrides from anon;
 revoke all on table public.cost_additional_components from anon;
 
+revoke all privileges on table public.cost_models from authenticated;
+revoke all privileges on table public.company_costing_settings from authenticated;
+revoke all privileges on table public.cost_config_versions from authenticated;
+revoke all privileges on table public.cost_config_overrides from authenticated;
+revoke all privileges on table public.cost_additional_components from authenticated;
+
 grant select on table public.cost_models to authenticated;
 grant select on table public.company_costing_settings to authenticated;
 grant select on table public.cost_config_versions to authenticated;
