@@ -39,6 +39,11 @@
 <script src="src/features/costing/costModel.js"></script>
 <script src="src/features/costing/costService.js"></script>
 <script src="src/features/costing/index.js"></script>
+<script src="src/features/costing/settings/costingSettingsRepository.js"></script>
+<script src="src/features/costing/settings/costingSettingsState.js"></script>
+<script src="src/features/costing/settings/costingSettingsService.js"></script>
+<script src="src/features/costing/settings/costingSettingsRenderer.js"></script>
+<script src="src/features/costing/settings/index.js"></script>
 <script src="src/features/explore/exploreModel.js"></script>
 <script src="src/features/explore/exploreState.js"></script>
 <script src="src/features/explore/exploreReadEngine.js"></script>
@@ -547,6 +552,42 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .company-panel{border:1px solid #eceef3;border-radius:22px;background:#fff;padding:18px;box-shadow:0 18px 42px rgba(15,23,42,.06)}
   .company-panel h3{margin:0 0 6px;font-size:18px;color:#111}
   .company-panel p{margin:0 0 14px;color:#667085;font-size:12px;font-weight:700}
+  .costing-settings{display:flex;flex-direction:column;gap:16px}
+  .costing-layout{display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:16px;align-items:start}
+  .costing-panel{border:1px solid #eceef3;border-radius:22px;background:#fff;padding:18px;box-shadow:0 18px 42px rgba(15,23,42,.06)}
+  .costing-panel h3{margin:0 0 6px;font-size:18px;color:#111}
+  .costing-panel p{margin:0;color:#667085;font-size:12px;font-weight:700}
+  .costing-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px}
+  .costing-panel button,.costing-actions button{border:none;border-radius:999px;background:#111;color:#fff;height:34px;padding:0 14px;font-size:12px;font-weight:950;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .costing-panel button.subtle,.costing-actions button.subtle{background:#f4f4f5;color:#111}
+  .costing-panel button.danger{background:#fee2e2;color:#b91c1c}
+  .costing-source-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px}
+  .costing-source-actions{display:flex;gap:8px;align-items:center}
+  .costing-source-actions button{background:#f2f2f0;color:#111;min-width:118px}
+  .costing-source-actions button.on{background:#111;color:#fff}
+  .costing-current{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .costing-current div,.costing-field{background:#f7f7f6;border-radius:14px;padding:12px}
+  .costing-current span,.costing-field span{display:block;text-transform:uppercase;color:#7b8498;font-size:10px;font-weight:950;letter-spacing:.04em}
+  .costing-current b{display:block;margin-top:4px;font-size:15px;color:#111}
+  .costing-current.test{margin-top:14px}
+  .costing-status{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#f4f4f5;color:#111;height:24px;padding:0 10px;font-size:10px;font-weight:950}
+  .costing-status.active{background:#dcfce7;color:#047857}
+  .costing-status.draft{background:#fff2c5;color:#a16207}
+  .costing-version-list{display:flex;flex-direction:column;gap:8px}
+  .costing-version-row{width:100%;height:auto!important;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff!important;color:#111!important;border:1px solid #eceef3!important;border-radius:16px!important;padding:12px!important}
+  .costing-version-row.on{border-color:#111!important;box-shadow:0 0 0 1px #111}
+  .costing-version-row small{display:block;color:#667085;font-size:11px;font-weight:800;margin-top:4px}
+  .costing-variable-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .costing-field small{display:block;color:#667085;font-size:11px;font-weight:700;line-height:1.25;margin:4px 0 8px}
+  .costing-field input{width:100%;height:34px;border:1px solid #dfe3ec;border-radius:10px;background:#fff;padding:0 10px;font:inherit;font-size:13px}
+  .costing-section-title{font-size:12px;text-transform:uppercase;color:#667085;margin:14px 0 8px}
+  .costing-note{margin-top:12px;color:#667085;font-size:12px;font-weight:800}
+  .costing-note.inline{margin:0;align-self:center}
+  .costing-table-wrap{overflow:auto}
+  .costing-inline-form{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:8px;margin-top:12px}
+  .costing-inline-form.compact{grid-template-columns:1fr 120px 100px auto}
+  .costing-inline-form input{height:36px;border:1px solid #dfe3ec;border-radius:999px;padding:0 12px;font:inherit;font-size:12px}
+  .costing-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .company-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .company-field{display:flex;flex-direction:column;gap:6px}
   .company-field.full{grid-column:1/-1}
@@ -1002,7 +1043,9 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
     .company-hero{align-items:flex-start}
     .company-title h2{font-size:22px}
     .company-mark{width:48px;height:48px;border-radius:15px;font-size:17px}
-    .company-shell,.company-form-grid{grid-template-columns:1fr}
+    .company-shell,.company-form-grid,.costing-layout,.costing-current,.costing-variable-grid{grid-template-columns:1fr}
+    .costing-source-panel{grid-template-columns:1fr}
+    .costing-source-actions,.costing-inline-form,.costing-inline-form.compact{grid-template-columns:1fr;display:grid}
     .company-member,.company-group{grid-template-columns:1fr}
     .company-member select{width:100%}
     .admin-user-controls{justify-content:flex-start}
@@ -5767,7 +5810,7 @@ function renderAdminCompany(tab){
   var profile=companyPublicProfile(c),members=companyMembersList(c.name),allUsers=ADMIN_USERS_CACHE||[],groups=companyLocalGroups(c.name),uq=String(ADMIN_USER_SEARCH||'').toLowerCase().trim();
   if(uq)allUsers=allUsers.filter(function(u){return [u.email,u.role,u.access_role,u.job_position,u.position,profileCompanyValue(u),u.company_group,u.department].join(' ').toLowerCase().indexOf(uq)>=0;});
   var h='<div class="company-hero"><div class="company-title"><div class="company-mark">'+escHtml(companyInitials(profile.name))+'</div><div><button class="subtle" onclick="backToAdminCompanies()" style="border:none;background:transparent;font-weight:950;margin:0 0 8px;padding:0;cursor:pointer">&#8592; Companies</button><h2>'+escHtml(profile.name)+'</h2><p>'+companyTypeBadge(profile.type)+' '+companyStatusBadge(profile.status)+' <span class="platform-badge">Platform Admin</span></p></div></div><button class="platform-primary" onclick="openInviteUserModal()">Invite user</button></div>';
-  h+='<div class="platform-tabs"><button class="'+(tab==='team'?'on':'')+'" onclick="renderAdminCompany(\'team\')">Team</button><button class="'+(tab==='profile'?'on':'')+'" onclick="renderAdminCompany(\'profile\')">Company Profile</button><button class="'+(tab==='groups'?'on':'')+'" onclick="renderAdminCompany(\'groups\')">Groups</button><button class="'+(tab==='collections'?'on':'')+'" onclick="renderAdminCompany(\'collections\')">Collections / Groups</button><button class="'+(tab==='activity'?'on':'')+'" onclick="renderAdminCompany(\'activity\')">Activity</button></div>';
+  h+='<div class="platform-tabs"><button class="'+(tab==='team'?'on':'')+'" onclick="renderAdminCompany(\'team\')">Team</button><button class="'+(tab==='profile'?'on':'')+'" onclick="renderAdminCompany(\'profile\')">Company Profile</button><button class="'+(tab==='groups'?'on':'')+'" onclick="renderAdminCompany(\'groups\')">Groups</button><button class="'+(tab==='collections'?'on':'')+'" onclick="renderAdminCompany(\'collections\')">Collections / Groups</button><button class="'+(tab==='costing'?'on':'')+'" onclick="renderAdminCompany(\'costing\')">Costing</button><button class="'+(tab==='activity'?'on':'')+'" onclick="renderAdminCompany(\'activity\')">Activity</button></div>';
   if(tab==='profile'){
     h+='<div class="company-shell"><div class="company-panel"><h3>Public company profile</h3><p>Edit how this company appears across the platform.</p><div class="company-form-grid">';
     h+='<div class="company-field"><label>Company name</label><input id="admin-company-public-name" value="'+escHtml(profile.name)+'"></div>';
@@ -5803,10 +5846,13 @@ function renderAdminCompany(tab){
     h+='</div></div><div class="company-panel"><h3>Create group</h3><p>Create a group for this company.</p><div class="company-form-grid"><div class="company-field full"><label>Group name</label><input id="admin-company-group-name" placeholder="Design, Buying, Menswear"></div><div class="company-field full"><label>Description</label><input id="admin-company-group-description" placeholder="Optional"></div></div><div class="company-actions"><button onclick="adminCreateCompanyGroup()">Create group</button></div></div></div>';
   }else if(tab==='collections'){
     h+=renderCompanyCollectionsManager(c.name,c.type,true);
+  }else if(tab==='costing'){
+    h+='<div id="company-costing-settings-root" class="company-panel"><h3>Costing</h3><p>Loading company costing settings...</p></div>';
   }else{
     h+='<div class="company-panel"><h3>Activity</h3><p>Company administration changes will appear here.</p><div class="company-empty">No activity yet.</div></div>';
   }
   body.innerHTML=h;updatePlatformSidebar();
+  if(tab==='costing'&&window.CostingSettings)CostingSettings.mount({companyName:c.name,companyType:c.type,platformAdmin:true});
 }
 async function adminSaveCompanyPublicProfile(){
   if(!isAdmin()||!ADMIN_COMPANY_ID)return;
@@ -6139,7 +6185,7 @@ function renderCompanyPage(tab){
   if(admin&&(tab==='team'||tab==='groups')&&!COMPANY_GROUPS_LOADED[companyKey(profile.name)]){body.innerHTML='<div class="empty-showroom">Loading company workspace...</div>';adminLoadCompanyGroupsFromDb(profile.name).then(function(){if(activePageName()==='company')renderCompanyPage(tab);});return;}
   if(admin&&tab==='team'&&(!COMPANY_MEMBERS_CACHE[companyKey(profile.name)]||!(companyKey(profile.name) in COMPANY_INVITES_CACHE))){body.innerHTML='<div class="empty-showroom">Loading company members...</div>';loadCompanyMembersFor(profile.name).then(function(){if(activePageName()==='company')renderCompanyPage('team');});return;}
   var h='<div class="company-hero"><div class="company-title">'+companyMarkHtml(profile)+'<div><h2>'+escHtml(profile.name)+'</h2><p>'+companyTypeBadge(profile.type)+' '+companyStatusBadge(profile.status)+' <span class="platform-badge">'+escHtml(companyAccessRole())+'</span></p></div></div><button class="platform-primary" onclick="openInviteUserModal()">Invite user</button></div>';
-  h+='<div class="platform-tabs"><button class="'+(tab==='team'?'on':'')+'" onclick="renderCompanyPage(\'team\')">Team</button><button class="'+(tab==='profile'?'on':'')+'" onclick="renderCompanyPage(\'profile\')">Company Profile</button><button class="'+(tab==='groups'?'on':'')+'" onclick="renderCompanyPage(\'groups\')">Groups</button><button class="'+(tab==='collections'?'on':'')+'" onclick="renderCompanyPage(\'collections\')">Collections / Groups</button><button class="'+(tab==='invitations'?'on':'')+'" onclick="renderCompanyPage(\'invitations\')">Invitations</button><button class="'+(tab==='activity'?'on':'')+'" onclick="renderCompanyPage(\'activity\')">Activity</button></div>';
+  h+='<div class="platform-tabs"><button class="'+(tab==='team'?'on':'')+'" onclick="renderCompanyPage(\'team\')">Team</button><button class="'+(tab==='profile'?'on':'')+'" onclick="renderCompanyPage(\'profile\')">Company Profile</button><button class="'+(tab==='groups'?'on':'')+'" onclick="renderCompanyPage(\'groups\')">Groups</button><button class="'+(tab==='collections'?'on':'')+'" onclick="renderCompanyPage(\'collections\')">Collections / Groups</button><button class="'+(tab==='costing'?'on':'')+'" onclick="renderCompanyPage(\'costing\')">Costing</button><button class="'+(tab==='invitations'?'on':'')+'" onclick="renderCompanyPage(\'invitations\')">Invitations</button><button class="'+(tab==='activity'?'on':'')+'" onclick="renderCompanyPage(\'activity\')">Activity</button></div>';
   if(!admin){
     h+='<div class="company-empty">Company profile, team and group management are visible only for company administrators.</div>';
   }else if(tab==='profile'){
@@ -6164,12 +6210,15 @@ function renderCompanyPage(tab){
     h+='</div></div><div class="company-panel"><h3>Create group</h3><p>Groups belong only to this company.</p><div class="company-form-grid"><div class="company-field full"><label>Group name</label><input id="company-group-name" placeholder="Design, Buying, Menswear"></div><div class="company-field full"><label>Description</label><input id="company-group-description" placeholder="Optional"></div></div><div class="company-actions"><button onclick="createCompanyGroup()">Create group</button></div></div></div>';
   }else if(tab==='collections'){
     h+=renderCompanyCollectionsManager(profile.name,profile.type,false);
+  }else if(tab==='costing'){
+    h+='<div id="company-costing-settings-root" class="company-panel"><h3>Costing</h3><p>Loading company costing settings...</p></div>';
   }else if(tab==='invitations'){
     h+='<div class="company-panel"><h3>Invitations</h3><p>Invite people into this company only.</p><div class="company-note">Invited users should be attached to '+escHtml(profile.name)+' when approved. A user cannot be assigned to multiple companies at the same time, but can belong to multiple groups inside this company.</div></div>';
   }else{
     h+='<div class="company-panel"><h3>Activity</h3><p>Company profile, user group and member changes will appear here.</p><div class="company-empty">No company activity yet.</div></div>';
   }
   body.innerHTML=h;updatePlatformSidebar();
+  if(tab==='costing'&&admin&&window.CostingSettings)CostingSettings.mount({companyName:profile.name,companyType:profile.type,platformAdmin:false});
 }
 function renderAdminPage(tab){
   var body=document.getElementById('admin-page-body');if(!body)return;
