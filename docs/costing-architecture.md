@@ -141,17 +141,145 @@ FUTURE: Buyer UI should display landed cost only when the result is available an
 
 ## Cost Model 001
 
-CURRENT: `Cost Model 001` exists only as an architecture placeholder and testable interface. It has no invented formula.
+CURRENT: `Cost Model 001` is the formal characterization of the operational `cm()` methodology in `index.html`.
 
-FUTURE: Cost Model 001 must be based on one real operational costing methodology. When that model is available, decompose it into:
+CURRENT files:
 
-- Inputs.
-- Assumptions.
-- Formulas.
-- Conditions.
-- Outputs.
+- `src/features/costing/costModel.js`
+- `docs/cost-model-001.md`
+- `tests/costModel001.characterization.js`
 
-All business assumptions must be named configuration fields. No unexplained magic numbers should live in UI or feature renderers.
+CURRENT status: `CHARACTERIZED`.
+
+NOT IMPLEMENTED YET: historical validation against real approved reference styles.
+
+CURRENT: The pure evaluator is `evaluateCostModel001(input, resolvedConfiguration)`. It has no DOM dependency, no Supabase dependency, no routing dependency, no mutable global state dependency and no side effects.
+
+CURRENT: `CostModel001Connector` can call the evaluator and map the result into `CostResult`.
+
+CURRENT: Runtime `cm()` remains the live commercial source until parity and regression are explicitly accepted.
+
+All business assumptions are named configuration fields. No unexplained costing magic numbers should live in UI or feature renderers.
+
+## Company Cost Models
+
+CURRENT: Costing has one characterized model, Cost Model 001.
+
+FUTURE, NOT IMPLEMENTED: a company may select an active cost source:
+
+- STDTEX Cost Model 001
+- another STDTEX cost model
+- company model
+- ERP
+- custom API
+- third-party provider
+
+The future domain API should support:
+
+- `getAvailableCostModels(companyId)`
+- `getActiveCostModel(companyId)`
+- `setActiveCostModel(companyId, modelId)`
+
+For now, local/domain behavior can default to Cost Model 001 when costing is enabled.
+
+## Future Company Admin Settings
+
+FUTURE, NOT IMPLEMENTED:
+
+Company Settings -> Costing -> Cost Models
+
+Conceptual screen:
+
+- Cost Model selector
+- Status
+- Version
+- General variables
+- Logistics variables
+- Duties variables
+- Timing variables
+- Additional costs
+- Scopes
+- Test model
+- Save draft
+- Activate version
+
+Company Admin should eventually be able to select a model, view variables, edit values, add cost components, define scope, test the model, activate a model, duplicate a model and version a model.
+
+PLATFORM ADMIN can inspect/manage platform-level capabilities.
+
+Normal members and buyers should consume results, not manage cost model configuration, unless future permissions explicitly allow it.
+
+## Variable Metadata
+
+CURRENT: Cost Model 001 variables expose metadata sufficient for a future settings UI:
+
+- key
+- label
+- description
+- type
+- unit
+- defaultValue
+- currentValue
+- editable
+- scope
+- category/group
+- validation
+
+Only variables proven by current Model 001 behavior are included.
+
+## Scopes and Inheritance
+
+CURRENT: Cost Model 001 uses a single global model default.
+
+FUTURE, NOT IMPLEMENTED: configuration should resolve through:
+
+1. model default
+2. department override
+3. category override
+4. optional explicit style override later
+
+The most specific configured value wins.
+
+Departments and categories must come from company configuration/domain data. They must not be hardcoded into the costing engine.
+
+Do not duplicate a full model per department/category. Use base configuration plus scoped overrides.
+
+## Additional Cost Components
+
+FUTURE, NOT IMPLEMENTED: Company Admin may add simple named cost components such as:
+
+- Handling Fee
+- Quality Control
+- Agent Commission
+- Financial Cost
+- Warehouse Fee
+- Testing Cost
+- Custom Cost
+
+Each future component may need:
+
+- id
+- name
+- type
+- value
+- currency
+- percentage basis
+- scope
+- enabled
+
+Do not implement arbitrary formulas yet.
+
+## Versioning Safety
+
+FUTURE, NOT IMPLEMENTED: changing an active model configuration must not silently rewrite historical commercial decisions.
+
+Admin edits should create a new version:
+
+- Cost Model 001 v1
+- Admin changes values
+- Cost Model 001 v2
+
+Future calculations use v2. Historical calculations can retain model id and version for explainability.
 
 ## Model Evolution
 
