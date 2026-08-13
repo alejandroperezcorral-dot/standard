@@ -1,5 +1,6 @@
 const HistoricalSourceClassification = Object.freeze({
   INDEPENDENT_REFERENCE: 'INDEPENDENT_REFERENCE',
+  PARTIAL_INDEPENDENT_REFERENCE: 'PARTIAL_INDEPENDENT_REFERENCE',
   DERIVED_FROM_CURRENT_CM: 'DERIVED_FROM_CURRENT_CM',
   UNKNOWN_PROVENANCE: 'UNKNOWN_PROVENANCE',
   SYNTHETIC: 'SYNTHETIC',
@@ -230,7 +231,9 @@ function validateCostModel001(records, options) {
 
   const tolerances = Object.assign({}, DEFAULT_COST_MODEL_001_TOLERANCES, options.tolerances || {});
   const configuration = options.configuration || costingDomain.createModel001Configuration();
-  const fieldMap = Object.assign({}, DEFAULT_FIELD_MAP, options.fieldMap || {});
+  const fieldMap = options.fieldMap
+    ? Object.assign({}, options.fieldMap)
+    : Object.assign({}, DEFAULT_FIELD_MAP);
   const styleResults = [];
   const fieldResults = [];
 
@@ -292,6 +295,9 @@ function classifyHistoricalSource(source) {
   if (!source.exists) return HistoricalSourceClassification.UNUSABLE;
   if (source.synthetic) return HistoricalSourceClassification.SYNTHETIC;
   if (source.derivedFromCurrentRuntime) return HistoricalSourceClassification.DERIVED_FROM_CURRENT_CM;
+  if (source.hasIndependentReferenceOutputs && source.provenanceVerified && source.partial) {
+    return HistoricalSourceClassification.PARTIAL_INDEPENDENT_REFERENCE;
+  }
   if (source.hasIndependentReferenceOutputs && source.provenanceVerified) {
     return HistoricalSourceClassification.INDEPENDENT_REFERENCE;
   }

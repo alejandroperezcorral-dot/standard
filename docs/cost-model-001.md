@@ -27,7 +27,7 @@ Cost Model 001 preserves the current behavior instead of correcting or generaliz
 - status: `CHARACTERIZED`
 - source: `STDTEX internal costing model`
 
-Status is not `HISTORICALLY_VALIDATED` yet because no real historical reference set has been approved for finance validation.
+Status is not `HISTORICALLY_VALIDATED` yet. The FW26 bottoms workbook provides partial independent historical validation evidence, but duty-driven LDP and IMU mismatches remain to be explained before the model can be promoted.
 
 ## Default Configuration
 
@@ -280,9 +280,9 @@ Recommendation after this phase: validate Cost Model 001 against real historical
 
 ## Historical Validation
 
-CURRENT STATUS: `AWAITING REAL HISTORICAL REFERENCE DATA`.
+CURRENT STATUS: `HISTORICAL_VALIDATION_IN_PROGRESS`.
 
-Cost Model 001 has been code-characterized, but it is not historically validated yet.
+Cost Model 001 has been code-characterized and partially compared against an independently maintained historical costing workbook. It is not fully historically validated yet.
 
 Historical validation must compare Cost Model 001 against outputs produced independently by the original company costing methodology. Reference outputs must not be generated from current `cm()`, `evaluateCostModel001()`, or any implementation derived from this codebase.
 
@@ -293,11 +293,102 @@ Available local project candidates were inspected in read-only mode:
 | Source | Classification | Notes |
 | --- | --- | --- |
 | `Book1.xlsx` | `UNUSABLE` for full historical validation | Contains `Duty Calculator GJ` with duty/load-norm assumptions. It does not contain style-level historical reference outputs such as LDP, IMU, target FOB, freight per unit and duty results. |
-| `FW26 QUOTATION FILE - BOTTOMS.xlsb` | `UNKNOWN_PROVENANCE` | Binary Excel workbook exists locally, but the current approved runtime does not include a safe parser for `.xlsb`. It may be a future candidate only after independent provenance and reference-output columns are confirmed. |
+| `FW26 QUOTATION FILE - BOTTOMS.xlsb` | `PARTIAL_INDEPENDENT_REFERENCE` | Read-only Excel COM inspection found an operational bottoms quotation/costing workbook with formula-backed LDP, IMU, freight, duty and transit-day outputs. It does not provide independent markup or target FOB outputs. |
 | Current runtime/exported `cm()` values | `DERIVED_FROM_CURRENT_CM` | Useful for code characterization only. Not acceptable as independent historical reference data. |
 | Characterization fixtures | `SYNTHETIC` | Useful to protect code behavior. Not acceptable as independent historical reference data. |
 
-No source currently qualifies as `INDEPENDENT_REFERENCE`.
+No source currently qualifies as a full `INDEPENDENT_REFERENCE`.
+
+### FW26 Bottoms Workbook Audit
+
+The original workbook was preserved as read-only evidence:
+
+- path: `FW26 QUOTATION FILE - BOTTOMS.xlsb`
+- SHA256: `2CEB3B2B6CA80CEB8A1BE50F10F593432A1B4AA52D43A5441D995F1F6EE67578`
+- size: `124589` bytes
+- modified UTC: `2026-06-11 14:40:51`
+
+A separate local validation copy was exported to `.codex-secrets/costing-validation/fw26-bottoms-extracted.xlsx`. That directory is ignored by Git and contains proprietary historical data that must not be committed.
+
+Workbook inventory:
+
+| Sheet | Visibility | Relevant evidence |
+| --- | --- | --- |
+| `PLANIFICACION` | visible | 97 actual style rows, source inputs, LDP/IMU/freight/duty/transit formulas and cached values. |
+| `Control panel GJ` | visible | Route freight costs, transit days, currency assumptions, insurance and net-to-gross weight uplift. |
+| `Duty Calculator GJ` | visible | Origin/category duty rows with fixed duty, percentage duty and load norm. |
+| `Distr Group`, `Attributes`, `Coding Logic`, `Coding Woman`, `Coding Man`, `Coding Kids`, `SS26_MU`, `m3 per family` | hidden | Supporting lookup/reference sheets; not style-level output validation sources in this pass. |
+
+The relevant workbook formulas show:
+
+- IMU is calculated from gross RUB retail divided by VAT, less LDP converted by USD/RUB.
+- LDP is total USD cost divided by final planned units.
+- Freight per unit uses route cost, category load norm, net garment weight and net-to-gross uplift.
+- Duty uses `MAX(fixed duty, percentage duty)` by origin and category.
+- Total cost uses `FOB * 1.003`, confirming a 0.3% insurance uplift in this historical file.
+- Transit days come from the route table, with air as an explicit branch.
+
+### FW26 Bottoms Column Mapping
+
+| Source column | Normalized field | Role | Unit / notes |
+| --- | --- | --- | --- |
+| `Style number` | `styleReference` | identifier | Style reference only. |
+| `Department` | `inputs.department` | input | Department coverage evidence. |
+| `Category` | `inputs.cat`, `inputs.category` | input | Costing category. |
+| `Final planned units to buy` | `inputs.units` | input | Units. |
+| `Planned PVP (RRP)` | `inputs.pvp_rub` | input | Gross VAT-inclusive retail in RUB. |
+| `Purchase price USD (FOB)` | `inputs.fob` | input | FOB USD. |
+| `Target IMU` | `inputs.target_imu` | input | Ratio. |
+| `Pickup origin` | `inputs.origin` | input | Uppercase country/origin. |
+| `Type of transport` | `inputs.transport` | input | Normalized transport mode. |
+| `Date ex-factory` | `inputs.hod` | input/timing evidence | Historical ex-factory date. |
+| `Plan FSD` | `inputs.fsd` | input/timing evidence | Historical FSD/date planning field. |
+| `Garment weight net, kg` | `inputs.weight` | input | Net kg. |
+| `Landed cost per units USD (LDP)` | `reference.landedCost` | reference output | USD per unit. |
+| `Buying IMU` | `reference.imu` | reference output | Ratio. |
+| `Transport costs new` | `reference.freightPerUnit` | reference output | USD per unit. |
+| `Total Customs duties new` | `reference.duty` | reference output | USD per unit; two records were blank/missing. |
+| `Transit days` | `reference.transitDays` | reference output | Days. |
+
+### FW26 Bottoms Validation Result
+
+Validated against the existing Model 001 harness without changing tolerances:
+
+| Metric | Result |
+| --- | ---: |
+| Style records found | `97` |
+| Style records usable | `97` |
+| Independent output comparisons | `485` |
+| Overall match rate | `90.7%` |
+
+Per output:
+
+| Output | Matches | Rounding-only | Mismatches | Reference missing | Max absolute difference |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Landed cost / LDP | `82 / 97` | `0` | `15` | `0` | `$3.21552` |
+| IMU | `82 / 97` | `0` | `15` | `0` | `0.13433` |
+| Freight per unit | `97 / 97` | `0` | `0` | `0` | effectively `0` |
+| Duty | `82 / 97` | `0` | `13` | `2` | `$3.21552` |
+| Transit days | `97 / 97` | `0` | `0` | `0` | `0` |
+
+Scenario coverage:
+
+| Dimension | Covered values |
+| --- | --- |
+| Departments | `JACKETS`, `JEANS`, `PANTS`, `SHORTS`, `WARM_BOTTOMS` |
+| Categories | `Jct Denim`, `Jct Nondenim`, `Jeans Color`, `Jeans Commercial`, `Jeans Warm`, `Pants Commercial`, `Shorts Denim` |
+| Origins | `BANGLADESH`, `CHINA`, `PAKISTAN`, `VIETNAM` |
+| Transports | `AIR`, `SEA`, `SEA-TRAIN`, `SEA-TRUCK` |
+
+The mismatches are concentrated in duty-driven landed cost and IMU differences:
+
+| Origin / department / category | Evidence |
+| --- | --- |
+| `VIETNAM / PANTS / Pants Commercial` | Duty differences drive 9 LDP and IMU mismatches. |
+| `VIETNAM / JACKETS / Jct Nondenim` | Two records have missing duty reference values and resulting LDP/IMU differences. |
+| `BANGLADESH / JEANS / Jeans Color` | Four duty differences drive LDP and IMU mismatches. |
+
+The workbook therefore validates important parts of Model 001 methodology, especially freight allocation, transit-day lookup, retail/VAT/LDP IMU basis and the overall duty branch structure. It also proves that duty rows and possibly period/company/category assumptions require a second pass before declaring the model historically validated.
 
 ### Required Historical Validation Record
 
@@ -345,33 +436,27 @@ The harness deliberately keeps source-specific column mappings outside the Cost 
 
 ### Current Result
 
-Real styles validated: `0`.
+Real styles validated: `97` partial historical records.
 
-Sample size: `0`.
+Sample size: `97`.
 
-Scenario coverage: not available.
+Known mismatches: duty-driven landed-cost and IMU differences in specific origin/category groups.
 
-Known mismatches: not evaluated.
-
-Model status remains `CHARACTERIZED`.
+Model status remains `CHARACTERIZED`; validation status is `HISTORICAL_VALIDATION_IN_PROGRESS`.
 
 ### Future Configuration Evidence
 
-No real historical validation evidence is available yet to prove which variables should become Company Admin settings or department/category overrides.
-
-Preliminary candidates to investigate once real data is supplied:
+The FW26 bottoms workbook provides real evidence for future configuration. These are analysis notes only; no settings UI, schema, or formula changes are implemented.
 
 | Variable | Future classification to test |
 | --- | --- |
-| RUB exchange rate | `LIKELY_TIME_VERSIONED_VALUE` |
-| EUR exchange rate | `LIKELY_TIME_VERSIONED_VALUE` |
-| VAT | `LIKELY_COMPANY_SETTING` or `LIKELY_TIME_VERSIONED_VALUE` |
-| Target IMU | `LIKELY_COMPANY_SETTING`, possibly department/category override |
-| Fixed duty | `LIKELY_CATEGORY_OVERRIDE` |
-| Percentage duty | `LIKELY_CATEGORY_OVERRIDE` |
-| Freight route cost | `LIKELY_TIME_VERSIONED_VALUE` |
-| Freight allocation/load norm | `LIKELY_CATEGORY_OVERRIDE` |
-| Insurance | `LIKELY_COMPANY_SETTING` |
-| Gross weight uplift | `LIKELY_COMPANY_SETTING` or category override |
-
-These are analysis notes only. No settings UI, schema, or formula changes are implemented.
+| RUB exchange rate | `TIME_VERSIONED_VALUE` |
+| EUR exchange rate | `TIME_VERSIONED_VALUE` |
+| VAT | `COMPANY_SETTING` or `TIME_VERSIONED_VALUE` |
+| Target IMU | `COMPANY_SETTING`, possibly department/category override |
+| Fixed duty | `CATEGORY_OVERRIDE_CANDIDATE` |
+| Percentage duty | `CATEGORY_OVERRIDE_CANDIDATE` |
+| Freight route cost | `TIME_VERSIONED_VALUE` |
+| Freight allocation/load norm | `CATEGORY_OVERRIDE_CANDIDATE` |
+| Insurance | `MODEL_DEFAULT` or `COMPANY_SETTING` |
+| Gross weight uplift | `MODEL_DEFAULT`, possibly category override |
