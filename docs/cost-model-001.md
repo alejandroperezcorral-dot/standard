@@ -277,3 +277,101 @@ CURRENT: Characterization tests compare legacy `cm()` behavior against `evaluate
 NOT YET DONE: Real historical validation against 50-100 approved historical styles.
 
 Recommendation after this phase: validate Cost Model 001 against real historical styles before broad runtime replacement.
+
+## Historical Validation
+
+CURRENT STATUS: `AWAITING REAL HISTORICAL REFERENCE DATA`.
+
+Cost Model 001 has been code-characterized, but it is not historically validated yet.
+
+Historical validation must compare Cost Model 001 against outputs produced independently by the original company costing methodology. Reference outputs must not be generated from current `cm()`, `evaluateCostModel001()`, or any implementation derived from this codebase.
+
+### Source Audit
+
+Available local project candidates were inspected in read-only mode:
+
+| Source | Classification | Notes |
+| --- | --- | --- |
+| `Book1.xlsx` | `UNUSABLE` for full historical validation | Contains `Duty Calculator GJ` with duty/load-norm assumptions. It does not contain style-level historical reference outputs such as LDP, IMU, target FOB, freight per unit and duty results. |
+| `FW26 QUOTATION FILE - BOTTOMS.xlsb` | `UNKNOWN_PROVENANCE` | Binary Excel workbook exists locally, but the current approved runtime does not include a safe parser for `.xlsb`. It may be a future candidate only after independent provenance and reference-output columns are confirmed. |
+| Current runtime/exported `cm()` values | `DERIVED_FROM_CURRENT_CM` | Useful for code characterization only. Not acceptable as independent historical reference data. |
+| Characterization fixtures | `SYNTHETIC` | Useful to protect code behavior. Not acceptable as independent historical reference data. |
+
+No source currently qualifies as `INDEPENDENT_REFERENCE`.
+
+### Required Historical Validation Record
+
+The validation harness expects normalized records with:
+
+- `styleReference`
+- `inputs`: available Cost Model 001 inputs such as FOB, RRP/PVP, weight, units, origin, category, department, transport, target IMU, FSD and HOD
+- `reference`: independently calculated outputs such as landed cost/LDP, IMU, markup, target FOB, freight per unit, duty and transit days
+- `provenance`: source name, source type, source date if known, reference method, currency context and notes
+
+The template is available at:
+
+`docs/templates/cost-model-001-historical-validation-template.csv`
+
+### Tolerance Policy
+
+Tolerances are declared before validation:
+
+| Output type | Tolerance |
+| --- | ---: |
+| Money values | `0.01` |
+| Percentage ratios | `0.0005` |
+| Generic ratios | `0.0005` |
+| Days | `0` |
+| Exact fields | `0` |
+
+Rounding-only matches are reported separately from exact/internal calculation matches.
+
+### Validation Harness
+
+The historical validation harness lives in:
+
+`tools/costing/costModel001HistoricalValidation.js`
+
+It provides:
+
+- source classification helpers
+- normalized validation record creation
+- external-field mapping into normalized records
+- `validateCostModel001(records)` runner
+- field-level comparison results: `MATCH`, `ROUNDING_ONLY`, `MISMATCH`, `REFERENCE_MISSING`, `INPUT_MISSING`
+- aggregate summary by output
+
+The harness deliberately keeps source-specific column mappings outside the Cost Model 001 formula engine.
+
+### Current Result
+
+Real styles validated: `0`.
+
+Sample size: `0`.
+
+Scenario coverage: not available.
+
+Known mismatches: not evaluated.
+
+Model status remains `CHARACTERIZED`.
+
+### Future Configuration Evidence
+
+No real historical validation evidence is available yet to prove which variables should become Company Admin settings or department/category overrides.
+
+Preliminary candidates to investigate once real data is supplied:
+
+| Variable | Future classification to test |
+| --- | --- |
+| RUB exchange rate | `LIKELY_TIME_VERSIONED_VALUE` |
+| EUR exchange rate | `LIKELY_TIME_VERSIONED_VALUE` |
+| VAT | `LIKELY_COMPANY_SETTING` or `LIKELY_TIME_VERSIONED_VALUE` |
+| Target IMU | `LIKELY_COMPANY_SETTING`, possibly department/category override |
+| Fixed duty | `LIKELY_CATEGORY_OVERRIDE` |
+| Percentage duty | `LIKELY_CATEGORY_OVERRIDE` |
+| Freight route cost | `LIKELY_TIME_VERSIONED_VALUE` |
+| Freight allocation/load norm | `LIKELY_CATEGORY_OVERRIDE` |
+| Insurance | `LIKELY_COMPANY_SETTING` |
+| Gross weight uplift | `LIKELY_COMPANY_SETTING` or category override |
+
+These are analysis notes only. No settings UI, schema, or formula changes are implemented.
