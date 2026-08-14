@@ -5,6 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const core = require('../src/features/costing/core/costModel001.js');
+const workbookDefaults = require('../src/features/costing/core/costModel001WorkbookDefaults.js');
 const contract = require('../supabase/functions/calculate-style-cost/contract.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -187,38 +188,20 @@ function readText(file) {
   return fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '').trim();
 }
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergeConfig(base, extra) {
+  const merged = { ...base, ...extra };
+  if (extra.assumptions) merged.assumptions = { ...base.assumptions, ...extra.assumptions };
+  if (extra.freightRoutes) merged.freightRoutes = { ...base.freightRoutes, ...extra.freightRoutes };
+  if (extra.dutyRows) merged.dutyRows = extra.dutyRows;
+  return merged;
+}
+
 function fullConfig(extra = {}) {
-  return {
-    assumptions: {
-      insuranceRate: 0.003,
-      grossWeightUplift: 0.11,
-      rubExchangeRate: 87,
-      eurExchangeRate: 1.16,
-      vatRate: 0.2,
-      targetImu: 0.72,
-      fallbackDutyRate: 0.13,
-      defaultOrigin: 'BANGLADESH',
-      defaultTransportMode: 'SEA-TRUCK'
-    },
-    freightRoutes: {
-      'BANGLADESH|SEA-TRUCK': { cost: 9162, days: 65 },
-      'BANGLADESH|AIR': { cost: 58343, days: 20 },
-      'VIETNAM|SEA-TRUCK': { cost: 9306, days: 44 },
-      'VIETNAM|AIR': { cost: 49725, days: 17 },
-      'CHINA|SEA-TRAIN': { cost: 7086, days: 50 },
-      'INDIA|SEA': { cost: 6253, days: 59 },
-      'PAKISTAN|AIR': { cost: 44920, days: 20 }
-    },
-    dutyRows: [
-      { country: 'BANGLADESH', cat: 'Jeans Color', fixed: 1.9, pct: 0.1, load_norm: 10000 },
-      { country: 'BANGLADESH', cat: 'Polo', fixed: 0.5, pct: 0.153, load_norm: 12000 },
-      { country: 'VIETNAM', cat: 'Pants Commercial', fixed: 1.1, pct: 0.13, load_norm: 9000 },
-      { country: 'VIETNAM', cat: 'Jct Nondenim', fixed: 1.2, pct: 0.13, load_norm: 8500 },
-      { country: 'CHINA', cat: 'Jackets', fixed: 2.4, pct: 0.1, load_norm: 7000 },
-      { country: 'INDIA', cat: 'Overshirts', fixed: 0, pct: 0.16, load_norm: 8000 }
-    ],
-    ...extra
-  };
+  return mergeConfig(clone(workbookDefaults), extra);
 }
 
 function mapOverride(row) {

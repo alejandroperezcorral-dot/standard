@@ -82,6 +82,21 @@ async function rest(runtime, token, table, query) {
   });
 }
 
+async function restInsert(runtime, token, table, payload, query = 'select=*') {
+  return requestJson(`${runtime.supabaseUrl}/rest/v1/${table}?${query}`, {
+    method: 'POST',
+    headers: { ...headers(runtime, token), Prefer: 'return=representation' },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function restDelete(runtime, token, table, query) {
+  return requestJson(`${runtime.supabaseUrl}/rest/v1/${table}?${query}`, {
+    method: 'DELETE',
+    headers: { ...headers(runtime, token), Prefer: 'return=minimal' }
+  }, true);
+}
+
 async function rpc(runtime, token, name, payload) {
   return requestJson(`${runtime.supabaseUrl}/rest/v1/rpc/${name}`, {
     method: 'POST',
@@ -99,11 +114,11 @@ async function loadActive(runtime, token) {
 async function restoreActive(runtime, token, activeId) {
   if (!activeId) return;
   const current = await loadActive(runtime, token);
-  if (current.active_config_version_id === activeId) return;
+  if (current.active_config_version_id === activeId) return activeId;
   const draft = await rpc(runtime, token, 'duplicate_cost_config', {
     p_config_version_id: activeId,
-    p_config_code: `QA-BROWSER-RESTORE-${Date.now()}`,
-    p_config_label: 'QA Browser Restore'
+    p_new_config_code: `QA-BROWSER-RESTORE-${Date.now()}`,
+    p_new_config_label: 'QA Browser Restore'
   });
   await requestJson(`${runtime.supabaseUrl}/functions/v1/validate-cost-config`, {
     method: 'POST',
@@ -111,6 +126,65 @@ async function restoreActive(runtime, token, activeId) {
     body: JSON.stringify({ configId: draft.id })
   });
   await rpc(runtime, token, 'activate_cost_config', { p_config_version_id: draft.id });
+  return draft.id;
+}
+
+async function loadProfileByEmail(runtime, token, email) {
+  const encodedEmail = encodeURIComponent(email);
+  const rows = await rest(runtime, token, 'profiles', `email=eq.${encodedEmail}&select=id,email`);
+  assert.strictEqual(rows.length, 1, `expected one profile for ${email}`);
+  return rows[0];
+}
+
+async function nextPositiveStyleId(runtime, token) {
+  const rows = await rest(runtime, token, 'negotiation_rows', 'id=gt.0&select=id&order=id.desc&limit=1');
+  const current = rows.length ? Number(rows[0].id) : 1000;
+  assert.ok(Number.isSafeInteger(current), 'could not determine current max negotiation row id');
+  return Math.max(current + 1, 1000);
+}
+
+async function createQaStyle(runtime, token, ownerEmail) {
+  const owner = await loadProfileByEmail(runtime, token, ownerEmail);
+  const id = await nextPositiveStyleId(runtime, token);
+  const marker = `QA-COSTING-BROWSER-E2E-${Date.now()}`;
+  const payload = {
+    id,
+    fecha: '2026-08-15',
+    modelo: marker,
+    colour: 'QA BLACK',
+    description: 'QA costing browser e2e style',
+    supplier: 'STW',
+    origin: 'VIETNAM',
+    transport: 'SEA-TRUCK',
+    temporada: 'FW26',
+    dept: 'Pants',
+    cat: 'Pants Commercial',
+    pvp_rub: 1999,
+    fob1: 7.45,
+    fob2: null,
+    fob3: null,
+    fob_closed: null,
+    weight: 0.5,
+    units: 1200,
+    target_imu: 0.72,
+    notes: marker,
+    status: 'PENDING',
+    fsd: null,
+    hod: null,
+    user_id: owner.id,
+    updated_at: new Date().toISOString()
+  };
+  const rows = await restInsert(runtime, token, 'negotiation_rows', [payload], 'select=id,modelo,description,user_id');
+  assert.strictEqual(rows.length, 1, 'expected one QA style to be created');
+  assert.ok(Number.isSafeInteger(Number(rows[0].id)) && Number(rows[0].id) > 0, 'QA style must have a positive DB id');
+  return { id: rows[0].id, marker };
+}
+
+async function cleanupQaStyle(runtime, token, qaStyle) {
+  if (!qaStyle || !qaStyle.id) return;
+  await restDelete(runtime, token, 'negotiation_rows', `id=eq.${qaStyle.id}`);
+  const rows = await rest(runtime, token, 'negotiation_rows', `id=eq.${qaStyle.id}&select=id`);
+  assert.strictEqual(rows.length, 0, `QA style ${qaStyle.id} was not deleted`);
 }
 
 class CdpTab {
@@ -301,6 +375,7 @@ async function run() {
     console: []
   };
   let tab;
+  let qaStyle = null;
   try {
     await waitFor(async () => {
       try { await fetchJson(`http://127.0.0.1:${port}/json/version`); return true; } catch { return false; }
@@ -424,6 +499,7 @@ async function run() {
     report.checks.push('trusted backend validation through UI PASS');
 
     await tab.eval('window.confirm=()=>true');
+    await tab.waitSelector('[data-testid="costing-activate-config"]', 25000);
     await tab.click('[data-testid="costing-activate-config"]');
     await waitFor(async () => {
       const current = await loadActive(runtime, adminToken);
@@ -431,20 +507,71 @@ async function run() {
     }, 25000, 500);
     report.checks.push('activation through UI PASS');
 
+    qaStyle = await createQaStyle(runtime, adminToken, COMPANY_A_ADMIN);
+    report.qaStyleId = qaStyle.id;
+    report.checks.push(`QA positive negotiation row created PASS (${qaStyle.id})`);
+
     await tab.goto('/negotiation');
-    await waitFor(async () => tab.requests.some((r) => r.url.includes('/functions/v1/calculate-style-cost')), 25000, 500);
+    await waitFor(async () => {
+      const postRequestIds = tab.requests
+        .filter((r) => r.method === 'POST' && r.url.includes('/functions/v1/calculate-style-cost'))
+        .map((r) => r.requestId);
+      return tab.responses.some((r) => postRequestIds.includes(r.requestId) && r.status >= 200 && r.status < 300);
+    }, 35000, 500).catch(async (e) => {
+      const debug = await tab.eval(`(() => {
+        const rows = Array.isArray(window.ROWS) ? window.ROWS : [];
+        const pending = rows.filter((r) => typeof window.isOpenBuyingRow === 'function' ? window.isOpenBuyingRow(r) : r && r.status !== 'CLOSED');
+        return {
+          href: location.href,
+          activePage: typeof window.activePageName === 'function' ? window.activePageName() : null,
+          authEmail: window.AUTH_USER && window.AUTH_USER.email || null,
+          profile: window.AUTH_PROFILE && {
+            role: window.AUTH_PROFILE.role,
+            access_role: window.AUTH_PROFILE.access_role,
+            company_name: window.AUTH_PROFILE.company_name,
+            active_company_name: window.AUTH_PROFILE.active_company_name,
+            company_type: window.AUTH_PROFILE.company_type
+          },
+          isAdmin: typeof window.isAdmin === 'function' ? window.isAdmin() : null,
+          activeCompanyName: typeof window.activeCompanyName === 'function' ? window.activeCompanyName() : null,
+          costingCanRequest: typeof window.costingCanRequestForContext === 'function' ? window.costingCanRequestForContext() : null,
+          serviceAvailable: !!window.StdtexCostingCalculationService,
+          rows: rows.length,
+          pending: pending.length,
+          pendingIds: pending.slice(0, 10).map((r) => r && r.id)
+        };
+      })()`);
+      const requestPreview = tab.requests.slice(-25).map((r) => `${r.method} ${r.url}`).join('\n');
+      throw new Error(`successful calculate-style-cost POST was not captured: ${e.message}; debug=${JSON.stringify(debug)}; recentRequests=${requestPreview}`);
+    });
     text = await tab.text();
     assert.ok(text.includes('LINES') || text.includes('FOB TARGET') || text.includes('FOB Target'), 'Negotiation did not render cost columns');
     const edgeBodies = await tab.getResponseBodies((r) => r.url.includes('/functions/v1/calculate-style-cost') || r.url.includes('/functions/v1/validate-cost-config'));
     report.edgeCalls = edgeBodies.map((r) => ({ url: r.url, status: r.status, bodyPreview: String(r.body || r.bodyError || '').slice(0, 500) }));
     assert.ok(edgeBodies.some((r) => r.url.includes('calculate-style-cost') && r.status >= 200 && r.status < 300), 'no successful calculate-style-cost response captured');
+    assert.ok(edgeBodies.some((r) => {
+      if (!r.url.includes('calculate-style-cost') || r.status < 200 || r.status >= 300 || !r.body) return false;
+      try {
+        const body = JSON.parse(r.body);
+        return Array.isArray(body.results) && body.results.some((result) => String(result.styleId) === String(qaStyle.id));
+      } catch {
+        return false;
+      }
+    }), `calculate-style-cost response did not include QA style ${qaStyle.id}`);
     report.checks.push('negotiation costing edge consumption PASS');
 
+    const memberRequestStart = tab.requests.length;
     await browserLogin(tab, COMPANY_A_MEMBER, password, '/negotiation');
-    await waitFor(async () => tab.requests.some((r) => r.url.includes('/functions/v1/calculate-style-cost')), 25000, 500).catch(() => null);
+    await waitFor(async () => {
+      const postRequestIds = tab.requests
+        .slice(memberRequestStart)
+        .filter((r) => r.method === 'POST' && r.url.includes('/functions/v1/calculate-style-cost'))
+        .map((r) => r.requestId);
+      return tab.responses.some((r) => postRequestIds.includes(r.requestId) && r.status >= 200 && r.status < 300);
+    }, 35000, 500).catch(() => null);
     const memberText = await tab.text();
     assert.ok(memberText.includes('LINES') || memberText.includes('FOB TARGET') || memberText.includes('FOB Target'), 'member negotiation did not render');
-    const memberRawConfigRequests = tab.requests.filter((r) => /company_costing_settings|cost_config_versions|cost_config_overrides|cost_additional_components/.test(r.url));
+    const memberRawConfigRequests = tab.requests.slice(memberRequestStart).filter((r) => /company_costing_settings|cost_config_versions|cost_config_overrides|cost_additional_components/.test(r.url));
     report.memberRawConfigRequestCount = memberRawConfigRequests.length;
     assert.strictEqual(memberRawConfigRequests.length, 0, 'member browser made raw costing config table requests');
     report.checks.push('company member costing privacy PASS');
@@ -453,10 +580,16 @@ async function run() {
     assert.strictEqual(productionRequests.length, 0, 'browser touched production Supabase');
     report.checks.push('production isolation PASS');
 
-    await restoreActive(runtime, adminToken, started.active_config_version_id);
+    const restoredConfigId = await restoreActive(runtime, adminToken, started.active_config_version_id);
     const restored = await loadActive(runtime, adminToken);
-    assert.strictEqual(restored.active_config_version_id, started.active_config_version_id, 'active config was not restored');
-    report.checks.push('active config restore PASS');
+    assert.strictEqual(restored.active_config_version_id, restoredConfigId, 'active config was not restored through lifecycle');
+    assert.notStrictEqual(restored.active_config_version_id, draftId, 'QA draft remained active after restore');
+    report.restoredActiveConfigId = restored.active_config_version_id;
+    report.checks.push('active config restore through lifecycle PASS');
+
+    await cleanupQaStyle(runtime, adminToken, qaStyle);
+    qaStyle = null;
+    report.checks.push('QA style cleanup PASS');
 
     report.console = tab.console;
     const activeConsoleErrors = tab.console.filter((c) => c.type === 'error' || c.type === 'exception');
@@ -475,6 +608,14 @@ async function run() {
     console.error(JSON.stringify(report, null, 2));
     process.exitCode = 1;
   } finally {
+    if (qaStyle) {
+      try {
+        await cleanupQaStyle(runtime, adminToken, qaStyle);
+        report.qaCleanupAttempted = true;
+      } catch (cleanupError) {
+        report.qaCleanupError = cleanupError && cleanupError.stack || String(cleanupError);
+      }
+    }
     if (tab) tab.close();
     try { child.kill(); } catch {}
     try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
