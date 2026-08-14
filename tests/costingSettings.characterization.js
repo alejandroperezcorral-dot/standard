@@ -11,6 +11,7 @@ global.confirm = () => true;
 
 vm.runInThisContext(fs.readFileSync('src/features/costing/costResultModel.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/costConnector.js', 'utf8'));
+vm.runInThisContext(fs.readFileSync('src/features/costing/core/costModel001.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/costModel.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/costService.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/index.js', 'utf8'));

@@ -10,6 +10,7 @@ const {
 } = require('../tools/costing/costModel001HistoricalValidation');
 
 [
+  'src/features/costing/core/costModel001.js',
   'src/features/costing/costResultModel.js',
   'src/features/costing/costConnector.js',
   'src/features/costing/costModel.js',

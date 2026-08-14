@@ -3,6 +3,7 @@ const vm = require('vm');
 const assert = require('assert');
 
 [
+  'src/features/costing/core/costModel001.js',
   'src/features/costing/costResultModel.js',
   'src/features/costing/costConnector.js',
   'src/features/costing/costModel.js',

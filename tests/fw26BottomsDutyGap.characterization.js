@@ -6,6 +6,7 @@ const {
 } = require('../tools/costing/adapters/fw26BottomsHistoricalAdapter');
 
 [
+  'src/features/costing/core/costModel001.js',
   'src/features/costing/costResultModel.js',
   'src/features/costing/costConnector.js',
   'src/features/costing/costModel.js',
