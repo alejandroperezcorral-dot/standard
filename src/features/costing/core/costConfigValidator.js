@@ -123,8 +123,9 @@
         pushError(errors,'INVALID_OBJECT',field);
         return;
       }
-      validateKnownKeys(row,{country:true,cat:true,fixed:true,pct:true,load_norm:true},field,errors);
+      validateKnownKeys(row,{country:true,dept:true,cat:true,fixed:true,pct:true,load_norm:true},field,errors);
       validateText(row.country,{validation:{required:true}},field+'.country',errors);
+      if(Object.prototype.hasOwnProperty.call(row,'dept'))validateText(row.dept,{validation:{required:true}},field+'.dept',errors);
       validateText(row.cat,{validation:{required:true}},field+'.cat',errors);
       validateNumber(row.fixed,{validation:{min:0}},field+'.fixed',errors);
       validateNumber(row.pct,{validation:{min:0}},field+'.pct',errors);

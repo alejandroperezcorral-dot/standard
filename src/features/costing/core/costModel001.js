@@ -9,6 +9,7 @@
   var COST_MODEL_001_VERSION=1;
   var COST_MODEL_001_CONFIGURATION_CURRENT='CURRENT';
   var COST_MODEL_001_CONFIGURATION_FW26='FW26';
+  var workbookDefaults=root.CostModel001WorkbookDefaults||{assumptions:{},freightRoutes:{},dutyRows:[]};
   var COST_MODEL_001_DEFAULT_ASSUMPTIONS={
     insuranceRate:0.003,
     grossWeightUplift:0.11,
@@ -20,6 +21,9 @@
     defaultOrigin:'BANGLADESH',
     defaultTransportMode:'SEA-TRUCK'
   };
+  COST_MODEL_001_DEFAULT_ASSUMPTIONS=Object.assign({},COST_MODEL_001_DEFAULT_ASSUMPTIONS,workbookDefaults.assumptions||{});
+  var COST_MODEL_001_DEFAULT_FREIGHT_ROUTES=workbookDefaults.freightRoutes||{};
+  var COST_MODEL_001_DEFAULT_DUTY_ROWS=workbookDefaults.dutyRows||[];
   var COST_MODEL_001_FW26_DUTY_OVERRIDES=[
     {
       id:'fw26-vietnam-pants-commercial-duty',
@@ -52,7 +56,14 @@
     {key:'targetImu',label:'Target IMU',description:'Default target IMU when a style does not provide its own target.',type:'percentage',unit:'%',defaultValue:0.72,editable:true,scope:'model-default',category:'GENERAL',validation:{min:-10,max:1}},
     {key:'fallbackDutyRate',label:'Fallback Duty',description:'Percentage duty used when an origin exists but no exact category duty row matches.',type:'percentage',unit:'%',defaultValue:0.13,editable:true,scope:'model-default',category:'DUTIES',validation:{min:0}},
     {key:'defaultOrigin',label:'Default Origin',description:'Origin used when a style does not provide one.',type:'text',unit:null,defaultValue:'BANGLADESH',editable:true,scope:'model-default',category:'GENERAL',validation:{required:true}},
-    {key:'defaultTransportMode',label:'Default Transport Mode',description:'Transport mode used when a style does not provide one.',type:'text',unit:null,defaultValue:'SEA-TRUCK',editable:true,scope:'model-default',category:'LOGISTICS',validation:{required:true}}
+    {key:'defaultTransportMode',label:'Default Transport Mode',description:'Transport mode used when a style does not provide one.',type:'text',unit:null,defaultValue:'SEA-TRUCK',editable:true,scope:'model-default',category:'LOGISTICS',validation:{required:true}},
+    {key:'aedExchangeRate',label:'AED Exchange Rate',description:'AED per USD from the Model 001 control panel.',type:'rate',unit:'AED/USD',defaultValue:3.67,editable:true,scope:'model-default',category:'CURRENCY',validation:{min:0}},
+    {key:'rmbExchangeRate',label:'RMB Exchange Rate',description:'RMB per USD from the Model 001 control panel.',type:'rate',unit:'RMB/USD',defaultValue:7.1,editable:true,scope:'model-default',category:'CURRENCY',validation:{min:0}},
+    {key:'seaRailroadContainerSize',label:'Sea/Railroad Container Size',description:'Container sizing assumption from the Model 001 control panel.',type:'number',unit:null,defaultValue:76,editable:true,scope:'model-default',category:'LOGISTICS',validation:{min:0}},
+    {key:'truckContainerSize',label:'Truck Container Size',description:'Truck sizing assumption from the Model 001 control panel.',type:'number',unit:null,defaultValue:82,editable:true,scope:'model-default',category:'LOGISTICS',validation:{min:0}},
+    {key:'optimizationRatio',label:'Optimization Ratio',description:'Container optimization ratio from the Model 001 control panel.',type:'percentage',unit:'%',defaultValue:0.8,editable:true,scope:'model-default',category:'LOGISTICS',validation:{min:0}},
+    {key:'successClothesRate',label:'Success Clothes',description:'Success ratio for clothes from the Model 001 control panel.',type:'percentage',unit:'%',defaultValue:0.7,editable:true,scope:'model-default',category:'GENERAL',validation:{min:0}},
+    {key:'successShoesRate',label:'Success Shoes',description:'Success ratio for shoes from the Model 001 control panel.',type:'percentage',unit:'%',defaultValue:0.7,editable:true,scope:'model-default',category:'GENERAL',validation:{min:0}}
   ];
 
   function cloneCostModelValue(value){
@@ -154,8 +165,8 @@
       status:CostModel001Status.CHARACTERIZED,
       source:'STDTEX_COST_MODEL',
       assumptions:Object.assign({},COST_MODEL_001_DEFAULT_ASSUMPTIONS,overrides.assumptions||{}),
-      freightRoutes:cloneCostModelValue(overrides.freightRoutes||{}),
-      dutyRows:cloneCostModelValue(overrides.dutyRows||[]),
+      freightRoutes:cloneCostModelValue(Object.prototype.hasOwnProperty.call(overrides,'freightRoutes')?overrides.freightRoutes:COST_MODEL_001_DEFAULT_FREIGHT_ROUTES),
+      dutyRows:cloneCostModelValue(Object.prototype.hasOwnProperty.call(overrides,'dutyRows')?overrides.dutyRows:COST_MODEL_001_DEFAULT_DUTY_ROWS),
       dutyOverrides:cloneCostModelValue(overrides.dutyOverrides||[]),
       fixedCosts:cloneCostModelValue(overrides.fixedCosts||{}),
       percentageCosts:cloneCostModelValue(overrides.percentageCosts||{}),
@@ -164,7 +175,10 @@
         var copy=Object.assign({},variable);
         copy.currentValue=overrides.values&&Object.prototype.hasOwnProperty.call(overrides.values,copy.key)
           ?overrides.values[copy.key]
-          :copy.defaultValue;
+          :Object.prototype.hasOwnProperty.call(COST_MODEL_001_DEFAULT_ASSUMPTIONS,copy.key)
+            ?COST_MODEL_001_DEFAULT_ASSUMPTIONS[copy.key]
+            :copy.defaultValue;
+        if(Object.prototype.hasOwnProperty.call(COST_MODEL_001_DEFAULT_ASSUMPTIONS,copy.key))copy.defaultValue=COST_MODEL_001_DEFAULT_ASSUMPTIONS[copy.key];
         return copy;
       }),
       scopes:cloneCostModelValue(overrides.scopes||{}),
@@ -219,8 +233,8 @@
     var context=normalizeCostingContext(input.context||input.calculationContext||{});
     var resolved=createCostModel001Configuration(model);
     if(model.assumptions)resolved.assumptions=Object.assign({},COST_MODEL_001_DEFAULT_ASSUMPTIONS,model.assumptions);
-    resolved.freightRoutes=cloneCostModelValue(model.freightRoutes||{});
-    resolved.dutyRows=cloneCostModelValue(model.dutyRows||[]);
+    resolved.freightRoutes=cloneCostModelValue(Object.prototype.hasOwnProperty.call(model,'freightRoutes')?model.freightRoutes:COST_MODEL_001_DEFAULT_FREIGHT_ROUTES);
+    resolved.dutyRows=cloneCostModelValue(Object.prototype.hasOwnProperty.call(model,'dutyRows')?model.dutyRows:COST_MODEL_001_DEFAULT_DUTY_ROWS);
     resolved.dutyOverrides=cloneCostModelValue(model.dutyOverrides||[]);
     resolved.fixedCosts=cloneCostModelValue(model.fixedCosts||{});
     resolved.percentageCosts=cloneCostModelValue(model.percentageCosts||{});
@@ -253,7 +267,12 @@
   function getCostModel001VariableMetadata(){
     return COST_MODEL_001_VARIABLES.map(function(variable){return Object.assign({},variable);});
   }
-  function costModel001FreightPerUnit(origin,transportMode,units,weight,category,configuration){
+  function costModel001FreightPerUnit(origin,transportMode,units,weight,category,department,configuration){
+    if(configuration==null&&department&&typeof department==='object'){
+      configuration=department;
+      department='';
+    }
+    configuration=configuration||{};
     var assumptions=configuration.assumptions||{};
     var routes=configuration.freightRoutes||{};
     var dutyRows=configuration.dutyRows||[];
@@ -263,19 +282,29 @@
     var unitsPerContainer=0;
     if(category){
       var countryTitle=origin.charAt(0).toUpperCase()+origin.slice(1).toLowerCase();
+      var fallbackDuty=null;
       for(var i=0;i<dutyRows.length;i++){
         var duty=dutyRows[i];
         if(String(duty.country||'').toLowerCase()===countryTitle.toLowerCase()&&duty.cat===category&&duty.load_norm>0){
-          unitsPerContainer=duty.load_norm/(weight*(1+assumptions.grossWeightUplift));
-          break;
+          if(department&&duty.dept&&String(duty.dept).toLowerCase()===String(department).toLowerCase()){
+            unitsPerContainer=duty.load_norm/(weight*(1+assumptions.grossWeightUplift));
+            break;
+          }
+          if(!fallbackDuty)fallbackDuty=duty;
         }
       }
+      if(!unitsPerContainer&&fallbackDuty)unitsPerContainer=fallbackDuty.load_norm/(weight*(1+assumptions.grossWeightUplift));
     }
     if(!unitsPerContainer)return{costPerUnit:0,days:route.days};
     var containers=(units||1)/unitsPerContainer;
     return{costPerUnit:(route.cost*containers)/(units||1),days:route.days};
   }
-  function costModel001DutyFor(origin,category,configuration){
+  function costModel001DutyFor(origin,category,department,configuration){
+    if(configuration==null&&department&&typeof department==='object'){
+      configuration=department;
+      department='';
+    }
+    configuration=configuration||{};
     if(!category)return{fixed:0,pct:0};
     var assumptions=configuration.assumptions||{};
     var dutyRows=configuration.dutyRows||[];
@@ -284,7 +313,10 @@
     for(var i=0;i<dutyRows.length;i++){
       var duty=dutyRows[i];
       if(String(duty.country||'').toLowerCase()===countryTitle.toLowerCase()){
-        if(duty.cat===category){best=duty;break;}
+        if(duty.cat===category){
+          if(department&&duty.dept&&String(duty.dept).toLowerCase()===String(department).toLowerCase()){best=duty;break;}
+          if(!best)best=duty;
+        }
       }
     }
     return best?{fixed:best.fixed,pct:best.pct}:{fixed:0,pct:assumptions.fallbackDutyRate};
@@ -303,8 +335,9 @@
     var units=input.units||input.quantity||1;
     var weight=input.weight||0;
     var category=input.cat||input.category||'';
-    var freight=costModel001FreightPerUnit(origin,transport,units,weight,category,configuration);
-    var duty=costModel001DutyFor(origin,category,configuration);
+    var department=input.dept||input.department||'';
+    var freight=costModel001FreightPerUnit(origin,transport,units,weight,category,department,configuration);
+    var duty=costModel001DutyFor(origin,category,department,configuration);
     var fixedCustoms=weight?duty.fixed*assumptions.eurExchangeRate*weight:0;
     var percentageCustoms=fob*duty.pct;
     var customs=Math.max(fixedCustoms,percentageCustoms);
@@ -358,6 +391,8 @@
     COST_MODEL_001_CONFIGURATION_CURRENT:COST_MODEL_001_CONFIGURATION_CURRENT,
     COST_MODEL_001_CONFIGURATION_FW26:COST_MODEL_001_CONFIGURATION_FW26,
     COST_MODEL_001_DEFAULT_ASSUMPTIONS:COST_MODEL_001_DEFAULT_ASSUMPTIONS,
+    COST_MODEL_001_DEFAULT_FREIGHT_ROUTES:COST_MODEL_001_DEFAULT_FREIGHT_ROUTES,
+    COST_MODEL_001_DEFAULT_DUTY_ROWS:COST_MODEL_001_DEFAULT_DUTY_ROWS,
     createCostModelMetadata:createCostModelMetadata,
     cloneCostModelValue:cloneCostModelValue,
     normalizeCostModelScopeText:normalizeCostModelScopeText,

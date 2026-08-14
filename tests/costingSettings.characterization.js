@@ -11,6 +11,7 @@ global.confirm = () => true;
 
 vm.runInThisContext(fs.readFileSync('src/features/costing/costResultModel.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/costConnector.js', 'utf8'));
+vm.runInThisContext(fs.readFileSync('src/features/costing/core/costModel001WorkbookDefaults.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/core/costModel001.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/costModel.js', 'utf8'));
 vm.runInThisContext(fs.readFileSync('src/features/costing/costService.js', 'utf8'));
@@ -70,6 +71,8 @@ CostingSettingsState.set({
 });
 let html = CostingSettingsRenderer.render(CostingSettingsState.get());
 assert.ok(html.includes('Save Draft'), 'Draft version exposes draft save action');
+assert.ok(html.includes('Logistics & Transport'), 'Draft version exposes logistics table section');
+assert.ok(html.includes('Duties & Tariffs'), 'Draft version exposes duties table section');
 assert.ok(html.includes('Add Override'), 'Draft version exposes override editor');
 assert.ok(html.includes('Add Cost'), 'Draft version exposes additional cost editor');
 assert.ok(html.includes('Requires trusted backend semantic validation'), 'Invalid draft clearly shows backend validation gate');
@@ -96,5 +99,24 @@ const preview = CostingSettingsService.testConfiguration(draft, [], {
 });
 assert.strictEqual(typeof preview.landedCost, 'number', 'Test flow uses Cost Model 001 evaluator');
 assert.strictEqual(CostingSettingsService.MODEL_001_CODE, 'cost-model-001', 'Model selector is limited to the persisted Model 001 code');
+assert.strictEqual(Object.keys(draft.base_config.freightRoutes).length, 21, 'Model 001 defaults include workbook logistics rows');
+assert.strictEqual(draft.base_config.dutyRows.length, 337, 'Model 001 defaults include workbook duty rows');
+assert.ok(draft.base_config.dutyRows[0].dept, 'Duty rows preserve department separately from category');
 
-console.log('costing settings characterization ok 14');
+const draftPatch = CostingSettingsService._versionPatchFromBaseConfig(Object.assign({}, draft.base_config, {
+  id: 'internal-id',
+  company_id: 'internal-company',
+  cost_model_id: 'internal-model',
+  formula_version: 1,
+  lifecycle_status: 'DRAFT'
+}));
+assert.ok(draftPatch.assumptions, 'Draft base config patch keeps editable assumptions');
+assert.ok(draftPatch.freightRoutes, 'Draft base config patch keeps editable logistics rows');
+assert.ok(draftPatch.dutyRows, 'Draft base config patch keeps editable duty rows');
+assert.ok(!Object.prototype.hasOwnProperty.call(draftPatch, 'id'), 'Draft base config patch never sends internal id');
+assert.ok(!Object.prototype.hasOwnProperty.call(draftPatch, 'company_id'), 'Draft base config patch never sends internal company id');
+assert.ok(!Object.prototype.hasOwnProperty.call(draftPatch, 'cost_model_id'), 'Draft base config patch never sends internal model id');
+assert.ok(!Object.prototype.hasOwnProperty.call(draftPatch, 'formula_version'), 'Draft base config patch never sends database formula version');
+assert.ok(!Object.prototype.hasOwnProperty.call(draftPatch, 'lifecycle_status'), 'Draft base config patch never sends lifecycle status');
+
+console.log('costing settings characterization ok 22');

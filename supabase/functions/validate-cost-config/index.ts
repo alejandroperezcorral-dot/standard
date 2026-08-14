@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import "../../../src/features/costing/core/costModel001WorkbookDefaults.js";
 import "../../../src/features/costing/core/costModel001.js";
 import "../../../src/features/costing/core/costConfigValidator.js";
 import "../calculate-style-cost/contract.js";
@@ -8,6 +9,22 @@ type JsonResponseInit = ResponseInit & { status?: number };
 
 const validator = (globalThis as any).CostConfigValidator;
 const contract = (globalThis as any).StdtexCostingEdgeContract;
+
+const ALLOWED_ORIGINS = new Set([
+  "http://127.0.0.1:8790",
+  "http://localhost:8790"
+]);
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  if (!ALLOWED_ORIGINS.has(origin)) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+}
 
 function json(data: unknown, init: JsonResponseInit = {}) {
   return new Response(JSON.stringify(data), {
@@ -20,8 +37,8 @@ function json(data: unknown, init: JsonResponseInit = {}) {
   });
 }
 
-function safeError(status: number, code: string) {
-  return json({ ok: false, error: code }, { status });
+function safeError(req: Request, status: number, code: string) {
+  return json({ ok: false, error: code }, { status, headers: corsHeaders(req) });
 }
 
 function isUuid(value: unknown) {
@@ -90,27 +107,31 @@ async function assertCanValidate(serviceClient: any, user: any, config: any) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return safeError(405, "METHOD_NOT_ALLOWED");
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(req) });
+  }
+  if (req.method !== "POST") return safeError(req, 405, "METHOD_NOT_ALLOWED");
   try {
-    if (!validator || !contract) return safeError(500, "COSTING_RUNTIME_UNAVAILABLE");
+    const responseHeaders = corsHeaders(req);
+    if (!validator || !contract) return safeError(req, 500, "COSTING_RUNTIME_UNAVAILABLE");
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) return safeError(500, "EDGE_ENV_MISSING");
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) return safeError(req, 500, "EDGE_ENV_MISSING");
 
     const authorization = req.headers.get("Authorization") || "";
-    if (!authorization) return safeError(401, "UNAUTHENTICATED");
+    if (!authorization) return safeError(req, 401, "UNAUTHENTICATED");
 
     const authClient = createClient(supabaseUrl, anonKey, {
       auth: { persistSession: false },
       global: { headers: { Authorization: authorization } }
     });
     const { data: userData, error: userError } = await authClient.auth.getUser();
-    if (userError || !userData || !userData.user) return safeError(401, "UNAUTHENTICATED");
+    if (userError || !userData || !userData.user) return safeError(req, 401, "UNAUTHENTICATED");
 
     const body = await req.json().catch(() => null);
     const configId = body && body.configId ? String(body.configId) : "";
-    if (!isUuid(configId)) return safeError(400, "CONFIG_ID_REQUIRED");
+    if (!isUuid(configId)) return safeError(req, 400, "CONFIG_ID_REQUIRED");
 
     const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
@@ -122,11 +143,11 @@ Deno.serve(async (req: Request) => {
       .eq("id", configId)
       .maybeSingle();
     if (configError) throw new Error("COST_CONFIG_LOOKUP_FAILED");
-    if (!config) return safeError(404, "CONFIG_NOT_FOUND");
-    if (config.lifecycle_status !== "DRAFT") return safeError(400, "ONLY_DRAFT_CONFIGS_CAN_BE_VALIDATED");
+    if (!config) return safeError(req, 404, "CONFIG_NOT_FOUND");
+    if (config.lifecycle_status !== "DRAFT") return safeError(req, 400, "ONLY_DRAFT_CONFIGS_CAN_BE_VALIDATED");
 
     const authorizationResult = await assertCanValidate(serviceClient, userData.user, config);
-    if (!authorizationResult.ok) return safeError(authorizationResult.status, authorizationResult.error);
+    if (!authorizationResult.ok) return safeError(req, authorizationResult.status, authorizationResult.error);
 
     const [{ data: model, error: modelError }, { data: overrides, error: overrideError }, { data: components, error: componentError }] = await Promise.all([
       serviceClient
@@ -146,7 +167,7 @@ Deno.serve(async (req: Request) => {
     if (modelError) throw new Error("COST_MODEL_LOOKUP_FAILED");
     if (overrideError) throw new Error("COST_OVERRIDE_LOOKUP_FAILED");
     if (componentError) throw new Error("COST_COMPONENT_LOOKUP_FAILED");
-    if (!model || model.status !== "AVAILABLE") return safeError(400, "COST_MODEL_NOT_AVAILABLE");
+    if (!model || model.status !== "AVAILABLE") return safeError(req, 400, "COST_MODEL_NOT_AVAILABLE");
 
     const result = validator.validateCostConfiguration({
       modelCode: model.code,
@@ -164,7 +185,7 @@ Deno.serve(async (req: Request) => {
         configId: config.id,
         formulaVersion: config.formula_version,
         errors: result.errors || []
-      });
+      }, { headers: responseHeaders });
     }
 
     const { data: marked, error: markError } = await serviceClient.rpc("mark_cost_config_semantically_validated", {
@@ -192,9 +213,9 @@ Deno.serve(async (req: Request) => {
       configId: config.id,
       formulaVersion: config.formula_version,
       semanticValidationStatus: marked && marked.semantic_validation_status ? marked.semantic_validation_status : "VALID"
-    });
+    }, { headers: responseHeaders });
   } catch (err) {
     console.error("validate-cost-config failed", err instanceof Error ? err.message : String(err));
-    return safeError(500, "COST_CONFIG_VALIDATION_SERVICE_ERROR");
+    return safeError(req, 500, "COST_CONFIG_VALIDATION_SERVICE_ERROR");
   }
 });

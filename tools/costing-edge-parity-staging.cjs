@@ -18,6 +18,12 @@ const COMPANY_A_MEMBER = 'companya.member1@example.test';
 const COMPANY_B_ADMIN = 'companyb.admin@example.test';
 const PLATFORM_ADMIN = 'platform.admin@example.test';
 const TOLERANCE = 1e-9;
+const FIXTURE_MARKER = 'QA-COSTING-E2E';
+const FIXTURE_COLUMNS = [
+  'id', 'modelo', 'description', 'supplier', 'origin', 'transport', 'temporada',
+  'dept', 'cat', 'pvp_rub', 'fob1', 'fob2', 'fob3', 'fob_closed', 'weight',
+  'units', 'target_imu', 'status', 'fsd', 'hod', 'user_id'
+];
 
 const FIXTURES = [
   {
@@ -309,11 +315,29 @@ async function login(runtime, email, password) {
   return data.access_token;
 }
 
+async function authUser(runtime, token) {
+  const data = await requestJson(`${runtime.supabaseUrl}/auth/v1/user`, {
+    method: 'GET',
+    headers: headers(runtime, token)
+  });
+  assert.ok(data.id, 'missing auth user id');
+  return data;
+}
+
 async function rest(runtime, token, table, query) {
   return requestJson(`${runtime.supabaseUrl}/rest/v1/${table}?${query}`, {
     method: 'GET',
     headers: headers(runtime, token)
   });
+}
+
+async function restWrite(runtime, token, table, method, query, payload, allowEmpty = false) {
+  const url = `${runtime.supabaseUrl}/rest/v1/${table}${query ? `?${query}` : ''}`;
+  return requestJson(url, {
+    method,
+    headers: Object.assign({}, headers(runtime, token), method === 'POST' ? { Prefer: 'return=representation' } : {}),
+    body: payload == null ? undefined : JSON.stringify(payload)
+  }, allowEmpty);
 }
 
 async function rpc(runtime, token, name, payload) {
@@ -415,6 +439,77 @@ async function createHarnessDraft(runtime, token, stamp, suffix, baseConfig, sea
   });
 }
 
+function fixtureRowsForUsers(companyAUserId, companyBUserId) {
+  return FIXTURES.map((row) => {
+    const normalized = {};
+    for (const column of FIXTURE_COLUMNS) normalized[column] = Object.prototype.hasOwnProperty.call(row, column) ? row[column] : null;
+    normalized.description = `${FIXTURE_MARKER} ${row.description}`;
+    normalized.user_id = row.id === -770009 ? companyBUserId : companyAUserId;
+    return normalized;
+  });
+}
+
+function fixtureIdsQuery() {
+  return `id=in.(${FIXTURES.map((row) => row.id).join(',')})`;
+}
+
+async function ensureNoFixtureCollision(runtime, token) {
+  const existing = await rest(
+    runtime,
+    token,
+    'negotiation_rows',
+    `${fixtureIdsQuery()}&select=id,modelo,description,user_id`
+  );
+  if (!existing.length) return;
+  const safeExisting = existing.filter((row) => String(row.description || '').includes(FIXTURE_MARKER));
+  if (safeExisting.length !== existing.length) {
+    throw new Error(`QA fixture id collision with non-harness rows: ${existing.map((row) => row.id).join(',')}`);
+  }
+  throw new Error(`QA fixture rows already exist from a previous run: ${existing.map((row) => row.id).join(',')}`);
+}
+
+async function setupStyleFixtures(runtime, tokens) {
+  const [companyAUser, companyBUser] = await Promise.all([
+    authUser(runtime, tokens.companyAAdmin),
+    authUser(runtime, tokens.companyBAdmin)
+  ]);
+  await ensureNoFixtureCollision(runtime, tokens.platformAdmin);
+  const rows = fixtureRowsForUsers(companyAUser.id, companyBUser.id);
+  const inserted = await restWrite(runtime, tokens.companyAAdmin, 'negotiation_rows', 'POST', '', rows.slice(0, 8));
+  const insertedB = await restWrite(runtime, tokens.companyBAdmin, 'negotiation_rows', 'POST', '', rows.slice(8));
+  return {
+    companyAIds: (inserted || []).map((row) => row.id),
+    companyBIds: (insertedB || []).map((row) => row.id),
+    allIds: rows.map((row) => row.id)
+  };
+}
+
+async function deleteOwnedFixtureRows(runtime, token, ids) {
+  if (!ids || !ids.length) return;
+  await restWrite(
+    runtime,
+    token,
+    'negotiation_rows',
+    'DELETE',
+    `id=in.(${ids.join(',')})&description=like.*${FIXTURE_MARKER}*`,
+    null,
+    true
+  );
+}
+
+async function cleanupStyleFixtures(runtime, tokens, created) {
+  if (!created) return;
+  await deleteOwnedFixtureRows(runtime, tokens.companyAAdmin, created.companyAIds);
+  await deleteOwnedFixtureRows(runtime, tokens.companyBAdmin, created.companyBIds);
+  const remaining = await rest(
+    runtime,
+    tokens.platformAdmin,
+    'negotiation_rows',
+    `${fixtureIdsQuery()}&description=like.*${FIXTURE_MARKER}*&select=id`
+  );
+  assert.strictEqual(remaining.length, 0, `QA fixture cleanup left rows: ${remaining.map((row) => row.id).join(',')}`);
+}
+
 async function legacyMarkValidated(runtime, token, configVersionId) {
   return rpc(runtime, token, 'mark_cost_config_semantically_validated', {
     p_config_version_id: configVersionId,
@@ -439,11 +534,14 @@ async function main() {
   const fixtureById = Object.fromEntries(FIXTURES.map((row) => [String(row.id), row]));
   let restoreDraft = null;
   let parityDraft = null;
-  const started = await loadActive(runtime, tokens.companyAAdmin);
-  const startedModel = buildModel(started.version, started.overrides);
-  assert.strictEqual(started.components.length, 0, 'active additional components are not currently supported');
+  let createdFixtures = null;
 
   try {
+    createdFixtures = await setupStyleFixtures(runtime, tokens);
+    const started = await loadActive(runtime, tokens.companyAAdmin);
+    const startedModel = buildModel(started.version, started.overrides);
+    assert.strictEqual(started.components.length, 0, 'active additional components are not currently supported');
+
     const currentResponse = await edge(runtime, tokens.companyAAdmin, { styleIds: [-770001, -770002, -770003] });
     assert.strictEqual(currentResponse.ok, true, 'current active response ok');
     for (const result of currentResponse.results) {
@@ -646,6 +744,10 @@ async function main() {
       durationMs
     }, null, 2));
   } finally {
+    await cleanupStyleFixtures(runtime, tokens, createdFixtures).catch((error) => {
+      console.error('FIXTURE_CLEANUP_FAILED', error.message);
+      process.exitCode = 1;
+    });
     if (restoreDraft) {
       await validateConfig(runtime, tokens.companyAAdmin, restoreDraft.id).catch(() => null);
       const current = await loadActive(runtime, tokens.companyAAdmin).catch(() => null);

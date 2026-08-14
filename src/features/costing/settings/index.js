@@ -64,6 +64,16 @@ var CostingSettings=(function(){
     }catch(e){notify(e.message||String(e),'err');}
   }
 
+  async function createModel001Draft(){
+    var s=CostingSettingsState.get();
+    if(!s.company)return;
+    try{
+      var draft=await CostingSettingsService.createModel001Draft(client(),{companyId:s.company.id});
+      notify('Draft created','ok');
+      await reload(draft.id);
+    }catch(e){notify(e.message||String(e),'err');}
+  }
+
   function collectAssumptions(){
     var base=(selected()&&selected().base_config&&selected().base_config.assumptions)||{};
     var assumptions=Object.assign({},base);
@@ -77,14 +87,142 @@ var CostingSettings=(function(){
     return assumptions;
   }
 
+  function normalizeKeyPart(value){
+    return String(value||'').trim().toUpperCase();
+  }
+
+  function currentBaseConfig(){
+    var version=selected();
+    return CostingDomain.createModel001Configuration((version&&version.base_config)||{});
+  }
+
+  function collectFreightRoutes(){
+    var routes={};
+    var seen={};
+    var rows=document.querySelectorAll('[data-cost-route-row]');
+    Array.prototype.forEach.call(rows,function(row){
+      var get=function(field){
+        var input=row.querySelector('[data-cost-route-field="'+field+'"]');
+        return input?input.value:'';
+      };
+      var origin=normalizeKeyPart(get('origin'));
+      var transport=normalizeKeyPart(get('transport'));
+      if(!origin&&!transport)return;
+      var key=origin+'|'+transport;
+      if(seen[key])throw new Error('Duplicate logistics row: '+key);
+      seen[key]=true;
+      routes[key]={cost:Number(get('cost')),days:Number(get('days'))};
+    });
+    return routes;
+  }
+
+  function collectDutyRows(){
+    var duties=[];
+    var seen={};
+    var rows=document.querySelectorAll('[data-cost-duty-row]');
+    Array.prototype.forEach.call(rows,function(row){
+      var get=function(field){
+        var input=row.querySelector('[data-cost-duty-field="'+field+'"]');
+        return input?input.value:'';
+      };
+      var country=String(get('country')||'').trim();
+      var dept=String(get('dept')||'').trim();
+      var cat=String(get('cat')||'').trim();
+      if(!country&&!dept&&!cat)return;
+      var key=normalizeKeyPart(country)+'|'+normalizeKeyPart(dept)+'|'+normalizeKeyPart(cat);
+      if(seen[key])throw new Error('Duplicate duty row: '+key);
+      seen[key]=true;
+      duties.push({
+        country:country,
+        dept:dept,
+        cat:cat,
+        fixed:Number(get('fixed')),
+        pct:Number(get('pct')),
+        load_norm:Number(get('load_norm'))
+      });
+    });
+    return duties;
+  }
+
+  function collectBaseConfig(){
+    var base=currentBaseConfig();
+    base.assumptions=collectAssumptions();
+    if(CostingSettingsState.isExpanded('logistics'))base.freightRoutes=collectFreightRoutes();
+    if(CostingSettingsState.isExpanded('duties'))base.dutyRows=collectDutyRows();
+    return base;
+  }
+
   async function saveDraft(){
     var version=selected();
     if(!version||version.lifecycle_status!=='DRAFT')return;
     try{
-      await CostingSettingsService.saveDraftAssumptions(client(),version.id,collectAssumptions());
+      await CostingSettingsService.saveDraftBaseConfig(client(),version.id,collectBaseConfig());
       notify('Draft saved','ok');
       await reload(version.id);
     }catch(e){notify(e.message||String(e),'err');}
+  }
+
+  function mutateSelectedBase(mutator){
+    var version=selected();
+    if(!version||version.lifecycle_status!=='DRAFT')return;
+    try{
+      version.base_config=collectBaseConfig();
+      mutator(version.base_config);
+      CostingSettingsState.set({dirty:true,testResult:null});
+      render();
+    }catch(e){notify(e.message||String(e),'err');}
+  }
+
+  function addLogisticsRow(){
+    mutateSelectedBase(function(base){
+      var origin=normalizeKeyPart(val('cost-logistics-origin'));
+      var transport=normalizeKeyPart(val('cost-logistics-transport'));
+      if(!origin||!transport)throw new Error('Country and transport are required');
+      var key=origin+'|'+transport;
+      base.freightRoutes=base.freightRoutes||{};
+      if(base.freightRoutes[key])throw new Error('Duplicate logistics row: '+key);
+      base.freightRoutes[key]={cost:Number(val('cost-logistics-cost')),days:Number(val('cost-logistics-days'))};
+    });
+  }
+
+  function removeLogisticsRow(index){
+    mutateSelectedBase(function(base){
+      var keys=Object.keys(base.freightRoutes||{}).sort();
+      if(keys[index])delete base.freightRoutes[keys[index]];
+    });
+  }
+
+  function addDutyRow(){
+    mutateSelectedBase(function(base){
+      var row={
+        country:String(val('cost-duty-country')||'').trim(),
+        dept:String(val('cost-duty-dept')||'').trim(),
+        cat:String(val('cost-duty-cat')||'').trim(),
+        fixed:Number(val('cost-duty-fixed')),
+        pct:Number(val('cost-duty-pct')),
+        load_norm:Number(val('cost-duty-load'))
+      };
+      if(!row.country||!row.dept||!row.cat)throw new Error('Country, department and category are required');
+      var key=normalizeKeyPart(row.country)+'|'+normalizeKeyPart(row.dept)+'|'+normalizeKeyPart(row.cat);
+      var rows=base.dutyRows||[];
+      for(var i=0;i<rows.length;i++){
+        var existing=normalizeKeyPart(rows[i].country)+'|'+normalizeKeyPart(rows[i].dept)+'|'+normalizeKeyPart(rows[i].cat);
+        if(existing===key)throw new Error('Duplicate duty row: '+key);
+      }
+      rows.push(row);
+      base.dutyRows=rows;
+    });
+  }
+
+  function removeDutyRow(index){
+    mutateSelectedBase(function(base){
+      base.dutyRows=(base.dutyRows||[]).filter(function(_,i){return i!==index;});
+    });
+  }
+
+  function toggleSection(key){
+    CostingSettingsState.toggleExpanded(key);
+    render();
   }
 
   async function duplicateSelected(){
@@ -224,7 +362,13 @@ var CostingSettings=(function(){
     selectVersion:selectVersion,
     setFobOnly:setFobOnly,
     ensureModel001Draft:ensureModel001Draft,
+    createModel001Draft:createModel001Draft,
     saveDraft:saveDraft,
+    toggleSection:toggleSection,
+    addLogisticsRow:addLogisticsRow,
+    removeLogisticsRow:removeLogisticsRow,
+    addDutyRow:addDutyRow,
+    removeDutyRow:removeDutyRow,
     duplicateSelected:duplicateSelected,
     addOverride:addOverride,
     removeOverride:removeOverride,

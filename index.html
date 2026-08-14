@@ -34,6 +34,7 @@
 <script src="src/features/styles/styleRepository.js"></script>
 <script src="src/features/styles/styleService.js"></script>
 <script src="src/features/styles/index.js"></script>
+<script src="src/features/costing/core/costModel001WorkbookDefaults.js"></script>
 <script src="src/features/costing/core/costModel001.js"></script>
 <script src="src/features/costing/core/costConfigValidator.js"></script>
 <script src="src/features/costing/costResultModel.js"></script>
@@ -478,6 +479,8 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   body.platform-sidebar-on .platform-sidebar{display:flex}
   body.platform-sidebar-on .pin-platform-nav{padding-left:88px}
   body.platform-sidebar-on #wrap{padding-left:72px}
+  body.platform-sidebar-on:not(.legacy-buying-shell-on) #sb,
+  body.platform-sidebar-on:not(.legacy-buying-shell-on) #sb-edge{display:none!important}
   body.platform-sidebar-on .pin-rail,body.platform-sidebar-on.showroom-home .pin-rail,body.platform-sidebar-on.pin-platform-on.showroom-home .pin-rail{display:none!important}
   body.platform-sidebar-on .pin-shell,body.platform-sidebar-on.showroom-home .pin-shell,body.platform-sidebar-on.pin-platform-on.showroom-home .pin-shell{display:block!important;grid-template-columns:1fr!important}
   .platform-side-logo{width:38px;height:38px;border:none;border-radius:999px;background:#e60023;color:#fff;font-size:9px;font-weight:1000;cursor:pointer;font-family:Arial,sans-serif;letter-spacing:-.8px;text-transform:lowercase;display:flex;align-items:center;justify-content:center}
@@ -587,6 +590,8 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .costing-note{margin-top:12px;color:#667085;font-size:12px;font-weight:800}
   .costing-note.inline{margin:0;align-self:center}
   .costing-table-wrap{overflow:auto}
+  .costing-table-wrap input{width:100%;min-width:96px;height:34px;border:1px solid #dfe3ec;border-radius:10px;padding:0 10px;font:inherit;font-size:12px;background:#fbfcff}
+  .costing-table-wrap input:disabled{background:#f4f5f7;color:#667085}
   .costing-inline-form{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:8px;margin-top:12px}
   .costing-inline-form.compact{grid-template-columns:1fr 120px 100px auto}
   .costing-inline-form input{height:36px;border:1px solid #dfe3ec;border-radius:999px;padding:0 12px;font:inherit;font-size:12px}
@@ -2330,7 +2335,7 @@ function requireAuthAction(){
 }
 
 function clearLoggedOutAppSurface(){
-  document.body.classList.remove('showroom-home','pin-platform-on','platform-sidebar-on','chat-page-on','canvas-editing','canvas-nav-open');
+  document.body.classList.remove('showroom-home','pin-platform-on','platform-sidebar-on','chat-page-on','legacy-buying-shell-on','canvas-editing','canvas-nav-open');
   ['showroom','neg','closed','dash','settings','help','suppliers','company','admin','chat','canvas'].forEach(function(id){
     var el=document.getElementById('pg-'+id)||document.getElementById(id);
     if(el)el.classList.remove('on');
@@ -8211,6 +8216,7 @@ function syncPinPlatform(name){
   document.body.classList.toggle('pin-platform-on',main);
   document.body.classList.toggle('platform-sidebar-on',main);
   document.body.classList.toggle('chat-page-on',name==='chat');
+  document.body.classList.toggle('legacy-buying-shell-on',name==='neg');
   ['showroom','neg','closed'].forEach(function(p){
     var b=document.getElementById('pin-nav-'+p);
     if(b)b.className='pin-platform-tab'+(p===name?' on':'');
@@ -8281,6 +8287,7 @@ function goTab(name){
   if(name!=='showroom'||previousPage!=='showroom')clearShowroomSelectionIfContextChanges(name);
   document.body.classList.toggle('showroom-home',name==='showroom');
   document.body.classList.toggle('chat-page-on',name==='chat');
+  document.body.classList.toggle('legacy-buying-shell-on',name==='neg');
   if(name!=='canvas'||!CANVAS_CURRENT_ID)document.body.classList.remove('canvas-editing','canvas-nav-open');
   document.body.classList.toggle('pin-platform-on',name==='showroom'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas');
   document.body.classList.add('platform-sidebar-on');

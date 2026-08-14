@@ -15,8 +15,29 @@ var CostingSettingsService=(function(){
     });
   }
 
-  function versionPatchFromAssumptions(assumptions){
-    return {assumptions:assumptions||{}};
+  function versionPatchFromBaseConfig(baseConfig){
+    baseConfig=baseConfig||{};
+    var editableKeys=[
+      'configurationVersion',
+      'name',
+      'status',
+      'source',
+      'assumptions',
+      'freightRoutes',
+      'dutyRows',
+      'dutyOverrides',
+      'fixedCosts',
+      'percentageCosts',
+      'transit',
+      'variables',
+      'scopes',
+      'resolutionTrace',
+      'context'
+    ];
+    return editableKeys.reduce(function(patch,key){
+      if(Object.prototype.hasOwnProperty.call(baseConfig,key))patch[key]=baseConfig[key];
+      return patch;
+    },{});
   }
 
   async function load(client,input){
@@ -81,10 +102,10 @@ var CostingSettingsService=(function(){
     }));
   }
 
-  async function saveDraftAssumptions(client,configVersionId,assumptions){
+  async function saveDraftBaseConfig(client,configVersionId,baseConfig){
     return assertOk(await repo().updateDraft(client,{
       configVersionId:configVersionId,
-      patch:versionPatchFromAssumptions(assumptions)
+      patch:versionPatchFromBaseConfig(baseConfig)
     }));
   }
 
@@ -145,7 +166,7 @@ var CostingSettingsService=(function(){
     setFobOnly:setFobOnly,
     createModel001Draft:createModel001Draft,
     duplicateDraft:duplicateDraft,
-    saveDraftAssumptions:saveDraftAssumptions,
+    saveDraftBaseConfig:saveDraftBaseConfig,
     addOverride:addOverride,
     removeOverride:removeOverride,
     addComponent:addComponent,
@@ -154,6 +175,7 @@ var CostingSettingsService=(function(){
     activate:activate,
     archive:archive,
     defaultConfig:defaultConfig,
-    testConfiguration:testConfiguration
+    testConfiguration:testConfiguration,
+    _versionPatchFromBaseConfig:versionPatchFromBaseConfig
   };
 })();

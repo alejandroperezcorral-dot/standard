@@ -10,7 +10,8 @@ var CostingSettingsState=(function(){
     dirty:false,
     loading:false,
     error:null,
-    testResult:null
+    testResult:null,
+    expandedSections:{}
   };
 
   function get(){
@@ -46,7 +47,8 @@ var CostingSettingsState=(function(){
       dirty:false,
       loading:false,
       error:null,
-      testResult:null
+      testResult:null,
+      expandedSections:{}
     };
     return state;
   }
@@ -58,5 +60,12 @@ var CostingSettingsState=(function(){
     selectedVersion:selectedVersion,
     activeVersion:activeVersion,
     latestDraft:latestDraft
+    ,
+    isExpanded:function(key){return !!(state.expandedSections&&state.expandedSections[key]);},
+    toggleExpanded:function(key){
+      state.expandedSections=Object.assign({},state.expandedSections||{});
+      state.expandedSections[key]=!state.expandedSections[key];
+      return state.expandedSections[key];
+    }
   };
 })();
