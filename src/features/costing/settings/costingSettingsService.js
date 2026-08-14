@@ -108,6 +108,12 @@ var CostingSettingsService=(function(){
     return assertOk(await repo().activateConfig(client,configVersionId));
   }
 
+  async function validateDraft(client,configVersionId){
+    var result=assertOk(await repo().validateCostConfig(client,configVersionId));
+    if(!result||result.ok!==true)throw new Error('Configuration validation failed');
+    return result;
+  }
+
   async function archive(client,configVersionId){
     return assertOk(await repo().archiveConfig(client,configVersionId));
   }
@@ -144,6 +150,7 @@ var CostingSettingsService=(function(){
     removeOverride:removeOverride,
     addComponent:addComponent,
     removeComponent:removeComponent,
+    validateDraft:validateDraft,
     activate:activate,
     archive:archive,
     defaultConfig:defaultConfig,

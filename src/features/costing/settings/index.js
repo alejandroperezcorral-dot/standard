@@ -158,7 +158,15 @@ var CostingSettings=(function(){
     }catch(e){notify(e.message||String(e),'err');}
   }
 
-  function testConfiguration(){
+  function activationErrorMessage(error){
+    var message=error&&error.message?error.message:String(error||'');
+    if(/SEMANTIC_VALIDATION_STALE|semantically validated|semantic/i.test(message)){
+      return 'Configuration changed. Test it again before activation.';
+    }
+    return message;
+  }
+
+  async function testConfiguration(){
     var version=selected();
     if(!version)return;
     var input={
@@ -170,8 +178,22 @@ var CostingSettings=(function(){
       units:Number(val('cost-test-units')),
       weight:Number(val('cost-test-weight'))
     };
-    CostingSettingsState.set({testResult:CostingSettingsService.testConfiguration(version,CostingSettingsState.get().overrides,input)});
-    render();
+    try{
+      if(version.lifecycle_status==='DRAFT'){
+        var validation=await CostingSettingsService.validateDraft(client(),version.id);
+        if(!validation.valid){
+          notify('Configuration is not valid','err');
+          CostingSettingsState.set({testResult:null});
+          render();
+          return;
+        }
+        notify('Configuration validated','ok');
+        await reload(version.id);
+        version=selected()||version;
+      }
+      CostingSettingsState.set({testResult:CostingSettingsService.testConfiguration(version,CostingSettingsState.get().overrides,input)});
+      render();
+    }catch(e){notify(e.message||String(e),'err');}
   }
 
   async function activateSelected(){
@@ -182,7 +204,7 @@ var CostingSettings=(function(){
       await CostingSettingsService.activate(client(),version.id);
       notify('Configuration activated','ok');
       await reload(version.id);
-    }catch(e){notify(e.message||String(e),'err');}
+    }catch(e){notify(activationErrorMessage(e),'err');}
   }
 
   async function archiveSelected(){

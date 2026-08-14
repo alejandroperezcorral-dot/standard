@@ -111,6 +111,12 @@ var CostingSettingsRepository=(function(){
     return requireClient(client).rpc('activate_cost_config',{p_config_version_id:configVersionId});
   }
 
+  function validateCostConfig(client,configVersionId){
+    return requireClient(client).functions.invoke('validate-cost-config',{
+      body:{configId:configVersionId}
+    });
+  }
+
   function archiveConfig(client,configVersionId){
     return requireClient(client).rpc('archive_cost_config',{p_config_version_id:configVersionId});
   }
@@ -132,6 +138,7 @@ var CostingSettingsRepository=(function(){
     updateComponent:updateComponent,
     removeComponent:removeComponent,
     activateConfig:activateConfig,
+    validateCostConfig:validateCostConfig,
     archiveConfig:archiveConfig
   };
 })();
