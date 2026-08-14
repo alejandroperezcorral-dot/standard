@@ -40,6 +40,7 @@
 <script src="src/features/costing/costConnector.js"></script>
 <script src="src/features/costing/costModel.js"></script>
 <script src="src/features/costing/costService.js"></script>
+<script src="src/features/costing/costingCalculationService.js"></script>
 <script src="src/features/costing/index.js"></script>
 <script src="src/features/costing/settings/costingSettingsRepository.js"></script>
 <script src="src/features/costing/settings/costingSettingsState.js"></script>
@@ -3745,6 +3746,8 @@ async function load(){
       }
     }catch(e2){}
   }finally{
+    resetCostResultState();
+    ensureCostResultsForRows(ROWS,'load');
     var _migratedFinally=migrateExistingNoCollectionRows(),_normFinally=normalizeExploreRows(),_seedFinally=ensureDemoExploreRows();if(_migratedFinally||_normFinally||_seedFinally)setTimeout(pushToSupabase,900);refreshSeasonDropdown();buildDL();liveCalc();syncCh();renderNeg();renderShowroom();updateBadge();
   }
 }
@@ -3848,6 +3851,140 @@ function costModel001RuntimeConfiguration(){
 }
 function cm(r){
   return CostingDomain.evaluateModel001(r,costModel001RuntimeConfiguration());
+}
+
+var COST_RESULTS_BY_STYLE_ID={};
+var COST_LOADING_STYLE_IDS={};
+var COSTING_ERROR_BY_STYLE_ID={};
+var COSTING_REQUEST_GENERATION=0;
+var COSTING_LAST_EDGE_CALLS=0;
+var COSTING_LAST_BATCH_SIZES=[];
+
+function styleIdKey(rowOrId){
+  var value=rowOrId&&typeof rowOrId==='object'?rowOrId.id:rowOrId;
+  return window.StdtexCostingCalculationService?StdtexCostingCalculationService.normalizeStyleId(value):null;
+}
+function resetCostResultState(){
+  COST_RESULTS_BY_STYLE_ID={};
+  COST_LOADING_STYLE_IDS={};
+  COSTING_ERROR_BY_STYLE_ID={};
+  COSTING_REQUEST_GENERATION++;
+  COSTING_LAST_EDGE_CALLS=0;
+  COSTING_LAST_BATCH_SIZES=[];
+}
+function invalidateCostResultsForRows(rowsOrIds){
+  (rowsOrIds||[]).forEach(function(item){
+    var key=styleIdKey(item);
+    if(!key)return;
+    delete COST_RESULTS_BY_STYLE_ID[key];
+    delete COST_LOADING_STYLE_IDS[key];
+    delete COSTING_ERROR_BY_STYLE_ID[key];
+  });
+}
+function costingTargetCompanyId(){
+  var ep=effectiveProfile?effectiveProfile():null;
+  return ep&&(ep.company_id||ep.active_company_id)||'';
+}
+function costingCanRequestForContext(){
+  if(!AUTH_USER)return false;
+  if(!isAdmin())return true;
+  return !!costingTargetCompanyId();
+}
+function rowsWithCostIds(rows){
+  var seen={},out=[];
+  (rows||[]).forEach(function(r){
+    var key=styleIdKey(r);
+    if(!key||seen[key])return;
+    seen[key]=1;
+    out.push(r);
+  });
+  return out;
+}
+function ensureCostResultsForRows(rows,reason){
+  if(!window.StdtexCostingCalculationService||!costingCanRequestForContext())return;
+  var missing=[];
+  rowsWithCostIds(rows).forEach(function(r){
+    var key=styleIdKey(r);
+    if(!key||COST_RESULTS_BY_STYLE_ID[key]||COST_LOADING_STYLE_IDS[key])return;
+    missing.push(key);
+  });
+  if(!missing.length)return;
+  missing.forEach(function(key){COST_LOADING_STYLE_IDS[key]=true;});
+  var generation=++COSTING_REQUEST_GENERATION;
+  var targetCompanyId=isAdmin()?costingTargetCompanyId():'';
+  StdtexCostingCalculationService.fetchCostResults(missing,{targetCompanyId:targetCompanyId}).then(function(result){
+    if(generation!==COSTING_REQUEST_GENERATION)return;
+    COSTING_LAST_EDGE_CALLS=result.batchCount||0;
+    COSTING_LAST_BATCH_SIZES=result.batchSizes||[];
+    missing.forEach(function(key){
+      delete COST_LOADING_STYLE_IDS[key];
+      delete COSTING_ERROR_BY_STYLE_ID[key];
+      if(!result.byStyleId||!result.byStyleId[key])COST_RESULTS_BY_STYLE_ID[key]={styleId:key,status:'NOT_AVAILABLE',reason:'NO_RESULT'};
+    });
+    Object.keys(result.byStyleId||{}).forEach(function(key){COST_RESULTS_BY_STYLE_ID[key]=result.byStyleId[key];});
+    rerenderCostingConsumers(reason);
+  }).catch(function(err){
+    missing.forEach(function(key){
+      delete COST_LOADING_STYLE_IDS[key];
+      COSTING_ERROR_BY_STYLE_ID[key]=err&&err.message?err.message:String(err||'COSTING_ERROR');
+    });
+    rerenderCostingConsumers(reason);
+  });
+}
+function rerenderCostingConsumers(reason){
+  var page=activePageName?activePageName():'';
+  if(_detailStyleId)renderStyleDetail();
+  if(_cdId)openClosedDetail(_cdId);
+  if(page==='neg')renderNeg();
+  if(page==='closed')renderClosed();
+  if(page==='showroom')renderShowroom();
+}
+function firstNumeric(){
+  for(var i=0;i<arguments.length;i++){
+    var n=Number(arguments[i]);
+    if(Number.isFinite(n)&&n>0)return n;
+  }
+  return null;
+}
+function costResultForRow(r){
+  var key=styleIdKey(r);
+  if(!key)return null;
+  return COST_RESULTS_BY_STYLE_ID[key]||null;
+}
+function costDisplayForRow(r){
+  var result=costResultForRow(r);
+  var fob=firstNumeric(result&&result.fob,result&&result.selectedFob,r&&r.fob_closed,r&&r.fob3,r&&r.fob2,r&&r.fob1);
+  if(result&&result.status==='READY'){
+    return {
+      ready:true,status:result.status,reason:result.reason||'',
+      fob:fob,
+      fobT:result.targetFob,
+      ldp:firstNumeric(result.landedCost,result.estimatedLandedCost),
+      imu:result.imu,
+      mu:result.markup,
+      gap:result.gap,
+      cu:result.freightPerUnit,
+      cust:result.customs,
+      custPct:result.customsPct,
+      days:result.transitDays,
+      hod:result.hod
+    };
+  }
+  return {
+    ready:false,
+    status:result&&result.status?result.status:(COST_LOADING_STYLE_IDS[styleIdKey(r)]?'LOADING':(COSTING_ERROR_BY_STYLE_ID[styleIdKey(r)]?'ERROR':'NOT_AVAILABLE')),
+    reason:(result&&result.reason)||COSTING_ERROR_BY_STYLE_ID[styleIdKey(r)]||'',
+    fob:fob,fobT:null,ldp:null,imu:null,mu:null,gap:null,cu:null,cust:null,custPct:null,days:null,hod:null
+  };
+}
+function costHasNumber(c,field){return !!c&&Number.isFinite(Number(c[field]));}
+function costUsd(v){return Number.isFinite(Number(v))?fU(Number(v)):'\u2014';}
+function costPercent(v){return Number.isFinite(Number(v))?fP(Number(v)):'\u2014';}
+function costMarkup(v){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(0)+'%':'\u2014';}
+function costGap(v){return Number.isFinite(Number(v))?(Number(v)>=0?'+':'')+(Number(v)*100).toFixed(1)+'pp':'\u2014';}
+function costColor(c){return costHasNumber(c,'gap')?icl(c.gap):'#9ca3af';}
+function costExportNumber(v,decimals){
+  return Number.isFinite(Number(v))?+Number(v).toFixed(decimals==null?2:decimals):'';
 }
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ HOD/FSD Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -4905,7 +5042,8 @@ function renderStyleDetail(){
   var body=document.getElementById('style-detail-body');if(!body)return;
   var r=ROWS.filter(function(x){return x.id===_detailStyleId;})[0];if(!r){body.innerHTML='';return;}
   _chatStyleId=_detailStyleId;
-  var c=cm(r),img=r.photo||r.photo2||'',files=styleFiles(r),supplierRef=styleSupplierRef(r),fabricRef=styleFabricRef(r);
+  ensureCostResultsForRows([r],'style-detail');
+  var c=costDisplayForRow(r),img=r.photo||r.photo2||'',files=styleFiles(r),supplierRef=styleSupplierRef(r),fabricRef=styleFabricRef(r);
   var h='<div class="drawer-topbar"><button class="drawer-back" onclick="closeStyleDetail()">&#8592; Back to Explore</button><div class="drawer-nav-actions">'+(canUseBuyingList()?'<button class="drawer-nav-btn icon-only" onclick="openStyleInBuyingList('+r.id+')" title="Open in Buying List" aria-label="Open in Buying List">$</button>':'')+'<button class="drawer-nav-btn" onclick="closeStyleDetail()">Done</button></div></div>';
   h+='<div class="style-detail-layout '+(_styleDetailNoChat?'no-chat':'')+'"><div class="style-detail-main">';
   h+='<div class="style-detail-hero">'+(img?'<img src="'+img+'" alt="">':'<div class="style-detail-empty">No image</div>')+'</div>';
@@ -4918,7 +5056,7 @@ function renderStyleDetail(){
   h+='<div class="drawer-sub">'+escHtml(r.desc||'')+'</div>';
   h+='<div class="style-status-banner"><span>Style status</span>'+statusDot(rowStatus(r))+'</div>';
   h+='<div class="style-info-grid">';
-  [['Supplier',r.supplier],['Collection',showroomFolderName(r)],['Season',r.temporada],['Dept.',r.dept],['Category',r.cat],['Origin',r.origin],['FOB',fU(r.fob1||r.fob_closed||c.fobT||0)]].forEach(function(p){h+='<div><span>'+p[0]+'</span><b>'+escHtml(p[1]||'-')+'</b></div>';});
+  [['Supplier',r.supplier],['Collection',showroomFolderName(r)],['Season',r.temporada],['Dept.',r.dept],['Category',r.cat],['Origin',r.origin],['FOB',costUsd(c.fob)]].forEach(function(p){h+='<div><span>'+p[0]+'</span><b>'+escHtml(p[1]||'-')+'</b></div>';});
   h+='</div>';
   h+='<div class="drawer-section-title">References</div>';
   h+='<div class="style-info-grid">';
@@ -4933,7 +5071,7 @@ function renderStyleDetail(){
   h+='<div><span>FOB price</span><input type="number" step="0.01" min="0" value="'+escHtml(r.fob1||'')+'" onchange="updateStyleDetailField(\'fob1\',this.value)"></div>';
   h+='<div><span>Units</span><input type="number" step="1" min="0" value="'+escHtml(r.units||'')+'" onchange="updateStyleDetailField(\'units\',this.value)"></div>';
   h+='<div><span>Number of colors</span><input type="number" step="1" min="0" value="'+escHtml(r.n_colours||'')+'" onchange="updateStyleDetailField(\'n_colours\',this.value)"></div>';
-  h+='<div><span>Target FOB</span><b>'+fU(c.fobT)+'</b></div>';
+  h+='<div><span>Target FOB</span><b>'+costUsd(c.fobT)+'</b></div>';
   h+='</div>';
   h+='<div class="drawer-section-title">Collection</div>';
   h+='<div class="style-info-grid">';
@@ -4978,6 +5116,7 @@ function updateStyleDetailField(field,value){
   else if(field==='fob1')r.fob1=parseFloat(value)||null;
   else if(field==='units')r.units=parseInt(value)||null;
   else if(field==='n_colours')r.n_colours=parseInt(value)||null;
+  if(['hod','fob1','units','modelo','supplier_ref','fabric_ref'].indexOf(field)>=0)invalidateCostResultsForRows([r]);
   if(['modelo','supplier_ref','fabric_ref'].indexOf(field)>=0){
     var label=field==='modelo'?'Brand style':field==='supplier_ref'?'Supplier reference':'Fabric reference';
     var nextValue=field==='supplier_ref'?styleSupplierRef(r):field==='fabric_ref'?styleFabricRef(r):(r.modelo||'');
@@ -6529,9 +6668,10 @@ function renderCollectionsBoard(){
     h+=CollectionsDomain.renderer.detailHeader({folderName:folderName,count:detailRows.length,fsdText:fsdText,summary:sum,supplierCanShare:isSupplierUser()&&!isAdmin(),canRemove:canDeleteCollectionMeta(meta),helpers:{escHtml:escHtml,formatNumber:fN,formatPercent:fP}});
     if(!detailRows.length)h+=CollectionsDomain.renderer.emptyState('detail');
     else{
+      ensureCostResultsForRows(detailRows,'collection-detail');
       h+='<div class="collection-detail-grid">';
       detailRows.forEach(function(r){
-        var c=cm(r),img=r.photo||r.photo2||'',src=sourceLabel(r),sref=styleSupplierRef(r);
+        var c=costDisplayForRow(r),img=r.photo||r.photo2||'',src=sourceLabel(r),sref=styleSupplierRef(r);
         var pinH=190+((r.id||0)%5)*58;
         h+=CollectionsDomain.renderer.detailStyleCard({row:r,calculations:c,image:img,sourceLabel:src,supplierRef:sref,pinHeight:pinH,selected:SHOWROOM_SELECTED[r.id],loggedIn:isLoggedIn(),folderName:showroomFolderName(r),helpers:{escHtml:escHtml,statusDot:statusDot,rowStatus:rowStatus,formatUsd:fU}});
       });
@@ -6636,9 +6776,10 @@ function renderShowroom(){
   renderShowroomBulkbar();
   var filterHtml=showroomAdvancedFiltersHtml(base);
   if(!rows.length){body.innerHTML=filterHtml+'<div class="empty-showroom">No showroom styles match the current filters.</div>';return;}
+  ensureCostResultsForRows(rows,'explore');
   var h=filterHtml+'<div class="showroom-grid">';
   rows.forEach(function(r){
-    var c=cm(r),img=r.photo||r.photo2||'',sref=styleSupplierRef(r);
+    var c=costDisplayForRow(r),img=r.photo||r.photo2||'',sref=styleSupplierRef(r);
     var pinH=190+((r.id||0)%5)*58;
     h+='<div class="style-card" onclick="openStyleDetail('+r.id+')" ondblclick="openStyleDetail('+r.id+')">';
     if(isLoggedIn())h+='<label class="pin-select" onclick="event.stopPropagation()"><input type="checkbox" class="sh-sel" data-id="'+r.id+'" '+(SHOWROOM_SELECTED[r.id]?'checked':'')+' onchange="toggleShowroomSelect('+r.id+',this.checked)" style="cursor:pointer"></label>';
@@ -6648,7 +6789,7 @@ function renderShowroom(){
     if(sref)h+='<div class="style-supplier-ref">Supplier ref: '+escHtml(sref)+'</div>';
     h+='<div class="style-desc">'+escHtml(r.desc||'')+'</div>';
     h+='<div class="style-supp">'+escHtml(r.supplier||'No supplier')+'</div>';
-    h+='<div class="style-foot"><span>'+escHtml(showroomFolderName(r))+'</span>'+(isLoggedIn()?'<b>'+fU(r.fob1||r.fob_closed||c.fobT||0)+'</b>':'')+'</div>';
+    h+='<div class="style-foot"><span>'+escHtml(showroomFolderName(r))+'</span>'+(isLoggedIn()?'<b>'+costUsd(c.fob)+'</b>':'')+'</div>';
     if(isLoggedIn())h+='<div class="style-card-actions"><button onclick="event.stopPropagation();openStyleDetail('+r.id+')" style="background:#eef2ff;color:#4a5af5">Open</button><button onclick="event.stopPropagation();toggleSaveShowroom('+r.id+')" style="background:#111;color:#fff">'+(isShowroomSaved(r.id)?'Saved':'Save')+'</button><button onclick="event.stopPropagation();openStyleChat('+r.id+')" style="background:#f0fdf4;color:#166534">Chat</button></div>';
     h+='</div></div>';
   });
@@ -7155,7 +7296,7 @@ function filtered(){
     if(fsn&&(r.temporada||'')!==fsn)return false;
     if(fds&&(r.desc||'')!==fds)return false;
     if(q&&((r.modelo||'')+(r.desc||'')+(r.supplier||'')).toLowerCase().indexOf(q)<0)return false;
-    if(fi){var c=cm(r);if(fi==='ok'&&c.gap<0)return false;if(fi==='warn'&&(c.gap>=0||c.gap<-0.02))return false;if(fi==='bad'&&c.gap>=-0.02)return false;}
+    if(fi){var c=costDisplayForRow(r);if(!costHasNumber(c,'gap'))return false;if(fi==='ok'&&c.gap<0)return false;if(fi==='warn'&&(c.gap>=0||c.gap<-0.02))return false;if(fi==='bad'&&c.gap>=-0.02)return false;}
     return true;
   });
 }
@@ -7166,6 +7307,7 @@ function clearNegFilters(){['f-q'].forEach(function(i){var e=document.getElement
 function renderNeg(){
   // Ã¢â€â‚¬Ã¢â€â‚¬ Cascading filter dropdowns (only real values from PENDING rows) Ã¢â€â‚¬Ã¢â€â‚¬
   var pending=ROWS.filter(function(r){return isOpenBuyingRow(r);});
+  ensureCostResultsForRows(pending,'negotiation');
   function uniqN(rows,field){var s={};rows.forEach(function(r){var v=r[field]||'';if(v)s[v]=1;});return Object.keys(s).sort();}
   function setDrop(id,label,vals,cur){
     var e=document.getElementById(id);if(!e)return;
@@ -7189,16 +7331,16 @@ function renderNeg(){
   var b4=b3.filter(function(r){return !fsn||(r.temporada||'')===fsn;});
   setDrop('f-desc','Description',uniqN(b4,'desc'),fds);
   var rows=filtered().slice().sort(function(a,b){
-    var ca=cm(a),cb=cm(b),va,vb;
+    var ca=costDisplayForRow(a),cb=costDisplayForRow(b),va,vb;
     if(sCol==='fecha'){va=a.fecha||'';vb=b.fecha||'';}
     else if(sCol==='modelo'){va=a.modelo||'';vb=b.modelo||'';}
     else if(sCol==='supplier'){va=a.supplier||'';vb=b.supplier||'';}
     else if(sCol==='pvp'){va=a.pvp_rub||0;vb=b.pvp_rub||0;}
     else if(sCol==='f1'){va=a.fob1||0;vb=b.fob1||0;}
     else if(sCol==='fc'){va=a.fob_closed||0;vb=b.fob_closed||0;}
-    else if(sCol==='imu'){va=ca.imu;vb=cb.imu;}
-    else if(sCol==='gap'){va=ca.gap;vb=cb.gap;}
-    else if(sCol==='ldp'){va=ca.ldp;vb=cb.ldp;}
+    else if(sCol==='imu'){va=costHasNumber(ca,'imu')?ca.imu:-999;vb=costHasNumber(cb,'imu')?cb.imu:-999;}
+    else if(sCol==='gap'){va=costHasNumber(ca,'gap')?ca.gap:-999;vb=costHasNumber(cb,'gap')?cb.gap:-999;}
+    else if(sCol==='ldp'){va=costHasNumber(ca,'ldp')?ca.ldp:999999;vb=costHasNumber(cb,'ldp')?cb.ldp:999999;}
     else if(sCol==='units'){va=a.units||0;vb=b.units||0;}
     else{va=0;vb=0;}
     return va<vb?-sDir:va>vb?sDir:0;
@@ -7213,7 +7355,7 @@ function renderNeg(){
   rows.forEach(function(r){
     var tableStatus=rowStatus(r)==='CLOSED'?'CLOSED':'PENDING';
     var tableSCOL={PENDING:{bg:'#eff6ff',cl:'#1d4ed8'},CLOSED:{bg:'#dcfce7',cl:'#166534'}};
-    var c=cm(r),ic=icl(c.gap),sm=tableSCOL[tableStatus]||tableSCOL.PENDING;
+    var c=costDisplayForRow(r),ic=costColor(c),sm=tableSCOL[tableStatus]||tableSCOL.PENDING;
     var cls=r.status==='CLOSED'?'tc':'';if(eId===r.id)cls+=' te';
     var fobs=[r.fob1,r.fob2,r.fob3,r.fob_closed].filter(function(f){return f>0;});
     var best=fobs.length?Math.min.apply(null,fobs):0;
@@ -7243,14 +7385,14 @@ function renderNeg(){
     h+=ed('units',r.units||'',true);
     h+=ed('pvp_rub',r.pvp_rub||'',true);
     h+=ec(r.fob1,'fob1');h+=ec(r.fob2,'fob2');h+=ec(r.fob3,'fob3');h+=ec(r.fob_closed,'fob_closed');
-    h+='<td class="ftc" style="padding:4px 6px">'+fU(c.fobT)+'</td>';
-    h+='<td class="nr" style="color:#aaa;font-size:10px;padding:4px 6px">'+fU(c.cu)+'</td>';
-    h+='<td class="nr" style="color:#b45309;font-size:10px;padding:4px 6px">'+fU(c.cust)+'<br><span style="font-size:9px;color:#d97706">'+(c.custPct*100).toFixed(1)+'%</span></td>';
-    h+='<td class="nr" style="font-weight:600;padding:4px 6px">'+fU(c.ldp)+'</td>';
-    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+fP(c.imu)+'</td>';
-    h+='<td class="nr" style="color:'+ic+';padding:4px 6px">'+(c.mu*100).toFixed(0)+'%</td>';
+    h+='<td class="ftc" style="padding:4px 6px">'+costUsd(c.fobT)+'</td>';
+    h+='<td class="nr" style="color:#aaa;font-size:10px;padding:4px 6px">'+costUsd(c.cu)+'</td>';
+    h+='<td class="nr" style="color:#b45309;font-size:10px;padding:4px 6px">'+costUsd(c.cust)+'<br><span style="font-size:9px;color:#d97706">'+(costHasNumber(c,'custPct')?(c.custPct*100).toFixed(1)+'%':'\u2014')+'</span></td>';
+    h+='<td class="nr" style="font-weight:600;padding:4px 6px">'+costUsd(c.ldp)+'</td>';
+    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+costPercent(c.imu)+'</td>';
+    h+='<td class="nr" style="color:'+ic+';padding:4px 6px">'+costMarkup(c.mu)+'</td>';
     h+='<td class="nr" style="padding:3px 4px"><span class="e" contenteditable="true" data-id="'+r.id+'" data-field="tgt_pct" onblur="cb(this)" onfocus="selectEditableCell(this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" style="cursor:text;border-bottom:1px dashed #ddd;font-size:10px;color:#aaa">'+((r.target_imu||0.72)*100).toFixed(0)+'</span><span style="font-size:9px;color:#bbb">%</span></td>';
-    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+(c.gap>=0?'+':'')+(c.gap*100).toFixed(1)+'pp</td>';
+    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+costGap(c.gap)+'</td>';
     h+='<td style="padding:2px 3px"><input type="date" value="'+(r.fsd||'')+'" data-id="'+r.id+'" data-field="fsd" onchange="cs(this)" style="border:1px solid #dde;border-radius:3px;font-size:11px;padding:2px 4px;width:100px;cursor:pointer;background:#fff;color:#333"></td>';
     h+='<td style="padding:2px 3px;background:#f0f4ff"><input type="date" value="'+(hod||'')+'" onchange="updateNegHOD('+r.id+',this.value)" style="border:1px solid #c7d2fe;border-radius:3px;font-size:11px;padding:2px 4px;width:100px;cursor:pointer;background:#f0f4ff;color:#4a5af5;font-weight:600"></td>';
     h+='<td class="e nr" contenteditable="true" data-id="'+r.id+'" data-field="ch_off" onblur="cb(this)" onfocus="selectEditableCell(this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" style="padding:4px 6px;color:'+chCl+'">'+chOff+'</td>';
@@ -7291,6 +7433,7 @@ function cb(el){
     if(field==='fob_closed'&&r.fob_closed>0)r.status='CLOSED';
   }
   if(field==='modelo'&&String(oldVal||'')!==String(r.modelo||''))addStyleAuditMessage(r,'Brand style changed from '+(oldVal||'-')+' to '+(r.modelo||'-'));
+  if(['pvp_rub','fob1','fob2','fob3','fob_closed','weight','units','tgt_pct'].indexOf(field)>=0)invalidateCostResultsForRows([r]);
   save();renderNeg();renderShowroom();updateBadge();
 }
 function cs(el){
@@ -7304,6 +7447,7 @@ function cs(el){
       setStyleCollections(ROWS[i],el.value?[el.value]:[]);
       if(before!==styleCollections(ROWS[i]).join(', '))addStyleAuditMessage(ROWS[i],'Collection moved from '+(before||'-')+' to '+(el.value||'-'));
     }else ROWS[i][el.dataset.field]=el.value;
+    if(['origin','transport','temporada','dept','cat','fsd','hod','status'].indexOf(el.dataset.field)>=0)invalidateCostResultsForRows([ROWS[i]]);
     break;
   }
   save();updateBadge();
@@ -7320,6 +7464,7 @@ async function delRow(id){
   if(!ok){toast('Error deleting row in database','err');return;}
   ROWS=ROWS.filter(function(r){return r.id!==id;});
   cleanupRemovedStyles([id]);
+  invalidateCostResultsForRows([id]);
   if(eId===id){eId=null;clearForm();}
   saveLocalSnapshot();renderNeg();renderShowroom();if(activePageName()==='chat')renderChatPage();updateBadge();
 }
@@ -7336,22 +7481,23 @@ function dupRow(id){
 function renderKPIs(rows){
   rows=rows||filtered();
   var closed=0,iSum=0,below=0,fobT=0,uT=0,dutyT=0,cpS=0,cpN=0,stT=0,wkS=0;
+  var costN=0;
   rows.forEach(function(r){
     if(r.status==='CLOSED')closed++;
-    var c=cm(r);iSum+=c.imu;if(c.gap<0)below++;
+    var c=costDisplayForRow(r);if(costHasNumber(c,'imu')){iSum+=c.imu;costN++;}if(costHasNumber(c,'gap')&&c.gap<0)below++;
     var af=r.fob_closed||r.fob3||r.fob2||r.fob1||0;
     fobT+=af*(r.units||0);uT+=(r.units||0);
-    dutyT+=c.cust*(r.units||0);
-    if(af>0){cpS+=c.custPct;cpN++;}
+    if(costHasNumber(c,'cust'))dutyT+=c.cust*(r.units||0);
+    if(costHasNumber(c,'custPct')){cpS+=c.custPct;cpN++;}
     stT+=Math.round((r.units||0)*(r.sell_thru!=null?r.sell_thru:65)/100);
     wkS+=(r.lc_weeks!=null?r.lc_weeks:10);
   });
-  var ai=rows.length?iSum/rows.length:0,am=ai<1?ai/(1-ai):0;
+  var ai=costN?iSum/costN:null,am=ai&&ai<1?ai/(1-ai):0;
   var acp=cpN?cpS/cpN:0,awk=rows.length?(wkS/rows.length).toFixed(1):0;
   var kd=[
     {l:'Lines',v:rows.length,s:(rows.length-closed)+' open \u00B7 '+closed+' closed',c:''},
     {l:'Total Units',v:uT?fN(uT,0):'\u2014',s:'filtered',c:'bl'},
-    {l:'Avg IMU',v:fP(ai),s:ai>=0.72?'\u2713 above target':'\u26A0 below target',c:ai>=0.72?'gr':'re'}
+    {l:'Avg IMU',v:ai==null?'\u2014':fP(ai),s:ai==null?'waiting for secure costing':(ai>=0.72?'\u2713 above target':'\u26A0 below target'),c:ai==null?'':(ai>=0.72?'gr':'re')}
   ];
   var h='';kd.forEach(function(k){h+='<div class="kp '+k.c+'"><div class="kl">'+k.l+'</div><div class="kv">'+k.v+'</div><div class="ks">'+k.s+'</div></div>';});
   document.getElementById('kpis').innerHTML=h;
@@ -7476,16 +7622,17 @@ function renderClosed(){
     if(q&&((r.modelo||'')+(r.desc||'')+(r.supplier||'')+(r.dept||'')).toLowerCase().indexOf(q)<0)return false;
     return true;
   });
-  var uT=0,fT=0,iS=0,sav=0,stT=0;
-  rows.forEach(function(r){var c=cm(r);uT+=(r.units||0);fT+=(r.fob_closed||0)*(r.units||0);iS+=c.imu;if(r.fob1&&r.fob_closed&&r.units)sav+=(r.fob1-r.fob_closed)*r.units;stT+=Math.round((r.units||0)*(r.sell_thru||65)/100);});
-  var ai=rows.length?iS/rows.length:0,am=ai<1?ai/(1-ai):0;
-  var kh='';[{l:'Closed',v:rows.length,s:'of '+ROWS.filter(function(r){return r.status==='CLOSED';}).length+' total',c:''},{l:'Total Units',v:uT?fN(uT,0):'\u2014',s:'purchased',c:'bl'},{l:'IMU avg',v:fP(ai),s:(am*100).toFixed(0)+'% markup',c:ai>=0.72?'gr':'re'}].forEach(function(k){kh+='<div class="kp '+k.c+'"><div class="kl">'+k.l+'</div><div class="kv">'+k.v+'</div><div class="ks">'+k.s+'</div></div>';});
+  ensureCostResultsForRows(rows,'closed');
+  var uT=0,fT=0,iS=0,sav=0,stT=0,costN=0;
+  rows.forEach(function(r){var c=costDisplayForRow(r);uT+=(r.units||0);fT+=(r.fob_closed||0)*(r.units||0);if(costHasNumber(c,'imu')){iS+=c.imu;costN++;}if(r.fob1&&r.fob_closed&&r.units)sav+=(r.fob1-r.fob_closed)*r.units;stT+=Math.round((r.units||0)*(r.sell_thru||65)/100);});
+  var ai=costN?iS/costN:null,am=ai&&ai<1?ai/(1-ai):0;
+  var kh='';[{l:'Closed',v:rows.length,s:'of '+ROWS.filter(function(r){return r.status==='CLOSED';}).length+' total',c:''},{l:'Total Units',v:uT?fN(uT,0):'\u2014',s:'purchased',c:'bl'},{l:'IMU avg',v:ai==null?'\u2014':fP(ai),s:ai==null?'waiting for secure costing':(am*100).toFixed(0)+'% markup',c:ai==null?'':(ai>=0.72?'gr':'re')}].forEach(function(k){kh+='<div class="kp '+k.c+'"><div class="kl">'+k.l+'</div><div class="kv">'+k.v+'</div><div class="ks">'+k.s+'</div></div>';});
   var kel=document.getElementById('ck');if(kel)kel.innerHTML=kh;
   var tb=document.getElementById('ctb');if(!tb)return;
   if(!rows.length){tb.innerHTML='<tr><td colspan="26" style="text-align:center;padding:40px;color:#bbb">No closed articles yet.</td></tr>';return;}
   var h='';
   rows.forEach(function(r){
-    var c=cm(r),ic=icl(c.gap);
+    var c=costDisplayForRow(r),ic=costColor(c);
     var stPct=r.sell_thru||65,lcWk=r.lc_weeks||10,stU=Math.round((r.units||0)*stPct/100),upw=lcWk>0?Math.round(stU/lcWk):'\u2014';
     var hod=hodFor(r);
     h+='<tr data-id="'+r.id+'" style="border-bottom:1px solid #f0f1f5;background:#f6fdf7;cursor:pointer" onclick="if(!event.target.closest(\'input,button,label,select\'))openClosedDetail('+r.id+')">';
@@ -7502,13 +7649,13 @@ function renderClosed(){
     h+='<td style="padding:4px 6px;font-size:10px;font-weight:700;color:#7c3aed">'+(r.temporada||'')+'</td>';
     h+='<td class="nr" style="padding:4px 6px;font-weight:600">'+fN(r.units,0)+'</td>';
     h+='<td class="nr" style="padding:4px 6px">'+fR(r.pvp_rub)+'</td>';
-    h+='<td class="nr" style="padding:4px 6px;font-weight:700;color:#166534">'+fU(c.fob)+'</td>';
-    h+='<td class="nr" style="padding:4px 6px;color:#b45309;font-size:10px">'+fU(c.cust)+'<br><span style="font-size:9px;color:#d97706">'+(c.custPct*100).toFixed(1)+'%</span></td>';
-    h+='<td class="nr" style="padding:4px 6px;color:#aaa;font-size:10px">'+fU(c.cu)+'</td>';
-    h+='<td class="nr" style="padding:4px 6px;font-weight:600">'+fU(c.ldp)+'</td>';
-    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+fP(c.imu)+'</td>';
-    h+='<td class="nr" style="color:'+ic+';padding:4px 6px">'+(c.mu*100).toFixed(0)+'%</td>';
-    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+(c.gap>=0?'+':'')+(c.gap*100).toFixed(1)+'pp</td>';
+    h+='<td class="nr" style="padding:4px 6px;font-weight:700;color:#166534">'+costUsd(c.fob)+'</td>';
+    h+='<td class="nr" style="padding:4px 6px;color:#b45309;font-size:10px">'+costUsd(c.cust)+'<br><span style="font-size:9px;color:#d97706">'+(costHasNumber(c,'custPct')?(c.custPct*100).toFixed(1)+'%':'\u2014')+'</span></td>';
+    h+='<td class="nr" style="padding:4px 6px;color:#aaa;font-size:10px">'+costUsd(c.cu)+'</td>';
+    h+='<td class="nr" style="padding:4px 6px;font-weight:600">'+costUsd(c.ldp)+'</td>';
+    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+costPercent(c.imu)+'</td>';
+    h+='<td class="nr" style="color:'+ic+';padding:4px 6px">'+costMarkup(c.mu)+'</td>';
+    h+='<td class="nr" style="font-weight:700;color:'+ic+';padding:4px 6px">'+costGap(c.gap)+'</td>';
     h+='<td style="padding:3px 4px;background:#f0f4ff"><input type="date" value="'+(r.fsd||'')+'" onchange="updateClosedFSD('+r.id+',this.value)" style="border:1px solid #c7d2fe;border-radius:4px;font-size:11px;color:#4a5af5;font-weight:700;background:#f0f4ff;padding:2px 4px;width:108px;cursor:pointer"></td>';
     h+='<td style="padding:3px 4px"><input type="date" value="'+(hod||'')+'" onchange="updateClosedHOD('+r.id+',this.value)" style="border:1px solid #e4e7f0;border-radius:4px;font-size:11px;padding:2px 4px;width:108px;cursor:pointer"></td>';
     h+='<td class="nr" style="padding:4px 6px">'+stPct+'%</td>';
@@ -7539,7 +7686,8 @@ var _fichaRows=[];var _fDragIdx=null;
 function openClosedDetail(id){
   var r=ROWS.filter(function(x){return x.id===id;})[0];if(!r)return;
   _cdId=id;
-  var c=cm(r),ic=icl(c.gap),hod=hodFor(r);
+  ensureCostResultsForRows([r],'closed-detail');
+  var c=costDisplayForRow(r),ic=costColor(c),hod=hodFor(r);
   // Header
   document.getElementById('cd-modelo').textContent=r.modelo||'Ã¢â‚¬â€';
   document.getElementById('cd-desc').textContent=r.desc||'';
@@ -7549,10 +7697,10 @@ function openClosedDetail(id){
   document.getElementById('cd-badge-season').style.display=r.temporada?'':'none';
   // KPIs strip
   var kpis=[
-    {l:'FOB Closed',v:fU(c.fob),clr:'#166534'},
-    {l:'IMU',v:fP(c.imu),clr:ic},
-    {l:'Gap',v:(c.gap>=0?'+':'')+(c.gap*100).toFixed(1)+'pp',clr:ic},
-    {l:'LDP',v:fU(c.ldp),clr:'#1a1a2e'},
+    {l:'FOB Closed',v:costUsd(c.fob),clr:'#166534'},
+    {l:'IMU',v:costPercent(c.imu),clr:ic},
+    {l:'Gap',v:costGap(c.gap),clr:ic},
+    {l:'LDP',v:costUsd(c.ldp),clr:'#1a1a2e'},
     {l:'Units',v:fN(r.units,0),clr:'#1a1a2e'},
     {l:'RRP Ã¢â€šÂ½',v:fR(r.pvp_rub),clr:'#1a1a2e'}
   ];
@@ -7597,6 +7745,7 @@ function cdSaveHOD(hodVal){
     r.fsd=d.toISOString().slice(0,10);
   }
   document.getElementById('cd-fsd').value=r.fsd||'';
+  invalidateCostResultsForRows([r]);
   save();renderClosed();
   var s=document.getElementById('cd-saved');s.style.opacity='1';setTimeout(function(){s.style.opacity='0';},1800);
 }
@@ -7604,6 +7753,7 @@ function cdSaveFSD(fsdVal){
   if(!_cdId)return;
   var r=ROWS.filter(function(x){return x.id===_cdId;})[0];if(!r)return;
   r.fsd=fsdVal||'';
+  invalidateCostResultsForRows([r]);
   save();renderClosed();
   var s=document.getElementById('cd-saved');s.style.opacity='1';setTimeout(function(){s.style.opacity='0';},1800);
 }
@@ -7615,21 +7765,25 @@ function updateClosedHOD(id,hodVal){
     var d=new Date(hodVal);d.setDate(d.getDate()+days);
     r.fsd=d.toISOString().slice(0,10);
   }
+  invalidateCostResultsForRows([r]);
   save();renderClosed();
 }
 function updateClosedFSD(id,fsdVal){
   var r=ROWS.filter(function(x){return x.id===id;})[0];if(!r)return;
   r.fsd=fsdVal||'';
+  invalidateCostResultsForRows([r]);
   save();renderClosed();
 }
 function updateNegHOD(id,hodVal){
   var r=ROWS.filter(function(x){return x.id===id;})[0];if(!r)return;
   r.hod=hodVal||'';
+  invalidateCostResultsForRows([r]);
   save();renderNeg();renderShowroom();updateBadge();
 }
 function exportClosedXLS(){
   var rows=ROWS.filter(function(r){return r.status==='CLOSED';});
   if(!rows.length){toast('No closed articles to export','warn');return;}
+  ensureCostResultsForRows(rows,'export-closed-xlsx');
   var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
   s.onload=function(){
     var wb=XLSX.utils.book_new();
@@ -7649,29 +7803,29 @@ function exportClosedXLS(){
     ];
     var aoa=[hdr];
     rows.forEach(function(r){
-      var c=cm(r);
+      var c=costDisplayForRow(r);
       var stU=Math.round((r.units||0)*(r.sell_thru||65)/100);
       var lcWk=r.lc_weeks||10;
       var upw=lcWk>0?Math.round(stU/lcWk):0;
       var hod=hodFor(r)||'';
       // transit days from freight routes
       var frKey=(r.origin||'').toUpperCase()+'|'+(r.transport||'').toUpperCase();
-      var transitDays=(FR[frKey]&&FR[frKey].days)||0;
+      var transitDays=costHasNumber(c,'days')?c.days:((FR[frKey]&&FR[frKey].days)||0);
       aoa.push([
         r.dept||'',r.cat||'',r.desc||'',r.modelo||'',r.temporada||'',
         r.supplier||'',r.status||'CLOSED',r.cust_profile||'',r.capsule||'',r.fashionability||'',r.n_colours||0,
-        r.units||0,r.units||0,r.pvp_rub||0,+(c.fob||0).toFixed(4),
+        r.units||0,r.units||0,r.pvp_rub||0,costExportNumber(c.fob,4),
         r.fob1||'',r.fob2||'',r.fob3||'',r.fob_closed?'YES':'NO',
-        +((c.imu||0)*100).toFixed(2),+((r.target_imu||0.72)*100).toFixed(2),+((c.mu||0)*100).toFixed(2),+((c.gap||0)*100).toFixed(2),
+        costHasNumber(c,'imu')?costExportNumber(c.imu*100,2):'',+((r.target_imu||0.72)*100).toFixed(2),costHasNumber(c,'mu')?costExportNumber(c.mu*100,2):'',costHasNumber(c,'gap')?costExportNumber(c.gap*100,2):'',
         r.origin||'',r.transport||'',
         r.fsd||'',hod,transitDays,
-        +c.ldp.toFixed(4),r.weight||0,
-        +((c.fob||0)*(r.units||0)).toFixed(2),
-        +(c.cu*(r.units||0)).toFixed(2),
-        +(c.cust*(r.units||0)).toFixed(2),
+        costExportNumber(c.ldp,4),r.weight||0,
+        costHasNumber(c,'fob')?+((c.fob||0)*(r.units||0)).toFixed(2):'',
+        costHasNumber(c,'cu')?+(c.cu*(r.units||0)).toFixed(2):'',
+        costHasNumber(c,'cust')?+(c.cust*(r.units||0)).toFixed(2):'',
         +((r.pvp_rub||0)*(r.units||0)).toFixed(0),
-        +(c.ldp*(r.units||0)).toFixed(2),
-        +(c.ldp*(r.units||0)*P.rub).toFixed(0),
+        costHasNumber(c,'ldp')?+(c.ldp*(r.units||0)).toFixed(2):'',
+        costHasNumber(c,'ldp')?+(c.ldp*(r.units||0)*P.rub).toFixed(0):'',
         r.ch_off||80,r.ch_mkt||10,r.ch_onl||10,r.sell_thru||65,stU,lcWk,upw,
         baseNotes(r.notes)||'',r.fecha||''
       ]);
@@ -7694,9 +7848,10 @@ function exportClosedXLS(){
 }
 function exportClosedCSV_legacy(){
   var rows=ROWS.filter(function(r){return r.status==='CLOSED';});
+  ensureCostResultsForRows(rows,'export-closed-csv');
   var hdr='Date,Style,Desc,Supplier,Origin,Dept,Cat,Units,PVP,FOB R1,FOB Closed,Saving,Duty,LDP,IMU%,MU%,Gap,FSD,HOD,ST%,ST Units,Weeks,Units/wk,Notes';
   var lines=[hdr];
-  rows.forEach(function(r){var c=cm(r),sv=(r.fob1&&r.fob_closed)?(r.fob1-r.fob_closed).toFixed(2):'',stU=Math.round((r.units||0)*(r.sell_thru||65)/100),lcWk=r.lc_weeks||10,upw=lcWk>0?(stU/lcWk).toFixed(1):'';var row=[r.fecha,r.modelo,r.desc,r.supplier,r.origin,r.dept,r.cat,r.units||'',r.pvp_rub||'',r.fob1||'',r.fob_closed||'',sv,c.cust.toFixed(2),c.ldp.toFixed(2),(c.imu*100).toFixed(1),(c.mu*100).toFixed(1),(c.gap*100).toFixed(1),r.fsd||'',hodFor(r)||'',r.sell_thru||65,stU,lcWk,upw,baseNotes(r.notes)||''];lines.push(row.map(function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';}).join(','));});
+  rows.forEach(function(r){var c=costDisplayForRow(r),sv=(r.fob1&&r.fob_closed)?(r.fob1-r.fob_closed).toFixed(2):'',stU=Math.round((r.units||0)*(r.sell_thru||65)/100),lcWk=r.lc_weeks||10,upw=lcWk>0?(stU/lcWk).toFixed(1):'';var row=[r.fecha,r.modelo,r.desc,r.supplier,r.origin,r.dept,r.cat,r.units||'',r.pvp_rub||'',r.fob1||'',r.fob_closed||'',sv,costExportNumber(c.cust,2),costExportNumber(c.ldp,2),costHasNumber(c,'imu')?(c.imu*100).toFixed(1):'',costHasNumber(c,'mu')?(c.mu*100).toFixed(1):'',costHasNumber(c,'gap')?(c.gap*100).toFixed(1):'',r.fsd||'',hodFor(r)||'',r.sell_thru||65,stU,lcWk,upw,baseNotes(r.notes)||''];lines.push(row.map(function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';}).join(','));});
   var b=new Blob(['\uFEFF'+lines.join('\n')],{type:'text/csv;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Closed_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
 
@@ -8247,7 +8402,8 @@ function gChange(){P.rub=gF('p-rub');P.aed=gF('p-aed');P.eur=gF('p-eur');P.csea=
 function exportCSV(){
   var hdr='ID,Fecha,Modelo,Desc,Proveedor,Origen,Dept,Cat,Uds,PVP,FOB R1,FOB R2,FOB R3,FOB Cerrado,FOB Target,LDP,IMU%,MU%,Gap,Arancel,Transp,FSD,HOD,Off%,Mkt%,Onl%,ST%,Uds ST,Semanas,Uds/sem,Estado,Notas';
   var lines=[hdr];
-  ROWS.forEach(function(r){var c=cm(r),stU=Math.round((r.units||0)*(r.sell_thru||65)/100),lcWk=r.lc_weeks||10,upw=lcWk>0?(stU/lcWk).toFixed(1):'';var row=[r.id,r.fecha,r.modelo,r.desc,r.supplier,r.origin,r.dept,r.cat,r.units||'',r.pvp_rub||'',r.fob1||'',r.fob2||'',r.fob3||'',r.fob_closed||'',c.fobT.toFixed(2),c.ldp.toFixed(2),(c.imu*100).toFixed(1),(c.mu*100).toFixed(1),(c.gap*100).toFixed(1),c.cust.toFixed(2),c.cu.toFixed(2),r.fsd||'',hodFor(r)||'',r.ch_off||80,r.ch_mkt||10,r.ch_onl||10,r.sell_thru||65,stU,lcWk,upw,r.status,baseNotes(r.notes)||''];lines.push(row.map(function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';}).join(','));});
+  ensureCostResultsForRows(ROWS,'export-csv');
+  ROWS.forEach(function(r){var c=costDisplayForRow(r),stU=Math.round((r.units||0)*(r.sell_thru||65)/100),lcWk=r.lc_weeks||10,upw=lcWk>0?(stU/lcWk).toFixed(1):'';var row=[r.id,r.fecha,r.modelo,r.desc,r.supplier,r.origin,r.dept,r.cat,r.units||'',r.pvp_rub||'',r.fob1||'',r.fob2||'',r.fob3||'',r.fob_closed||'',costExportNumber(c.fobT,2),costExportNumber(c.ldp,2),costHasNumber(c,'imu')?(c.imu*100).toFixed(1):'',costHasNumber(c,'mu')?(c.mu*100).toFixed(1):'',costHasNumber(c,'gap')?(c.gap*100).toFixed(1):'',costExportNumber(c.cust,2),costExportNumber(c.cu,2),r.fsd||'',hodFor(r)||'',r.ch_off||80,r.ch_mkt||10,r.ch_onl||10,r.sell_thru||65,stU,lcWk,upw,r.status,baseNotes(r.notes)||''];lines.push(row.map(function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';}).join(','));});
   var b=new Blob(['\uFEFF'+lines.join('\n')],{type:'text/csv;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='BuyingTool_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
 
@@ -8549,7 +8705,8 @@ function fDrop(e){
 }
 
 function buildCard(r){
-  var c=cm(r);
+  ensureCostResultsForRows([r],'ficha-card');
+  var c=costDisplayForRow(r);
   function fmtD(d){if(!d||d==='Ã¢â‚¬â€')return 'Ã¢â‚¬â€';var p=d.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d;}
   var fsd=fmtD(r.fsd), fcr=fmtD(hodFor(r));
   var stU=Math.round((r.units||0)*(r.sell_thru||65)/100);
@@ -8570,9 +8727,9 @@ function buildCard(r){
   h+='<table class="fc-table">';
   h+='<tr class="fc-dr"><td class="fc-dl">FSD</td><td class="fc-dv" style="font-weight:700">'+fsd+'</td><td class="fc-dl">FCR</td><td class="fc-dv">'+fcr+'</td></tr>';
   h+='<tr><td class="fl">Country of origin</td><td class="fv">'+(r.origin||'Ã¢â‚¬â€')+'</td><td class="fl">Life cycle (weeks)</td><td class="fv">'+lcW+'</td></tr>';
-  h+='<tr><td class="fl">IMU</td><td class="fv">'+(c.imu*100).toFixed(2)+'%</td><td class="fl">Average sales /week</td><td class="fv">'+upw+'</td></tr>';
-  h+='<tr><td class="fl">FOB</td><td class="fv">$'+(c.fob||0).toFixed(2)+'</td><td class="fl">Target ST units %</td><td class="fv">'+(r.sell_thru||65)+'%</td></tr>';
-  h+='<tr><td class="fl">LDP</td><td class="fv fc-ldp">$'+c.ldp.toFixed(2)+'</td><td class="fl" style="font-weight:700;color:#222">Price RRP</td><td class="fv" style="font-weight:700">'+(r.pvp_rub||0).toLocaleString('en')+'</td></tr>';
+  h+='<tr><td class="fl">IMU</td><td class="fv">'+(costHasNumber(c,'imu')?(c.imu*100).toFixed(2)+'%':'\u2014')+'</td><td class="fl">Average sales /week</td><td class="fv">'+upw+'</td></tr>';
+  h+='<tr><td class="fl">FOB</td><td class="fv">'+costUsd(c.fob)+'</td><td class="fl">Target ST units %</td><td class="fv">'+(r.sell_thru||65)+'%</td></tr>';
+  h+='<tr><td class="fl">LDP</td><td class="fv fc-ldp">'+costUsd(c.ldp)+'</td><td class="fl" style="font-weight:700;color:#222">Price RRP</td><td class="fv" style="font-weight:700">'+(r.pvp_rub||0).toLocaleString('en')+'</td></tr>';
   h+='<tr class="fc-pu"><td style="padding:2px 5px;font-size:6px;font-weight:700">Purchase units</td><td style="padding:2px 5px;text-align:right;font-size:6.5px;font-weight:800">'+(r.units||0).toLocaleString('en')+'</td><td colspan="2"></td></tr>';
   h+='<tr><td class="fl" style="padding-left:10px">Offline</td><td class="fv">'+offU.toLocaleString('en')+'</td><td class="fl">Customer profile</td><td class="fv">'+(r.cust_profile||'')+'</td></tr>';
   h+='<tr><td class="fl" style="padding-left:10px">Online</td><td class="fv">'+onlU.toLocaleString('en')+'</td><td class="fl">Collection</td><td class="fv">'+(r.capsule||'')+'</td></tr>';

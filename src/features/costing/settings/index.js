@@ -203,6 +203,8 @@ var CostingSettings=(function(){
     try{
       await CostingSettingsService.activate(client(),version.id);
       notify('Configuration activated','ok');
+      if(root.resetCostResultState)root.resetCostResultState();
+      if(root.ensureCostResultsForRows&&root.ROWS)root.ensureCostResultsForRows(root.ROWS,'costing-settings');
       await reload(version.id);
     }catch(e){notify(activationErrorMessage(e),'err');}
   }
