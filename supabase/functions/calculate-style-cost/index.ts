@@ -9,11 +9,27 @@ type JsonResponseInit = ResponseInit & { status?: number };
 const core = (globalThis as any).CostModel001Core;
 const contract = (globalThis as any).StdtexCostingEdgeContract;
 
+const ALLOWED_ORIGINS = new Set([
+  "http://127.0.0.1:8790",
+  "http://localhost:8790"
+]);
+
 const STYLE_COLUMNS = [
   "id","modelo","description","supplier","origin","transport","temporada","dept","cat",
   "pvp_rub","fob1","fob2","fob3","fob_closed","weight","units","target_imu",
   "status","fsd","hod","user_id"
 ].join(",");
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  if (!ALLOWED_ORIGINS.has(origin)) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+}
 
 function json(data: unknown, init: JsonResponseInit = {}) {
   return new Response(JSON.stringify(data), {
@@ -26,8 +42,8 @@ function json(data: unknown, init: JsonResponseInit = {}) {
   });
 }
 
-function safeError(status: number, code: string) {
-  return json({ ok: false, error: code }, { status });
+function safeError(req: Request, status: number, code: string) {
+  return json({ ok: false, error: code }, { status, headers: corsHeaders(req) });
 }
 
 function mapOverride(row: any) {
@@ -230,34 +246,38 @@ async function loadActiveConfiguration(serviceClient: any, companyId: string) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return safeError(405, "METHOD_NOT_ALLOWED");
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(req) });
+  }
+  if (req.method !== "POST") return safeError(req, 405, "METHOD_NOT_ALLOWED");
   try {
-    if (!core || !contract) return safeError(500, "COSTING_RUNTIME_UNAVAILABLE");
+    const responseHeaders = corsHeaders(req);
+    if (!core || !contract) return safeError(req, 500, "COSTING_RUNTIME_UNAVAILABLE");
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) return safeError(500, "EDGE_ENV_MISSING");
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) return safeError(req, 500, "EDGE_ENV_MISSING");
 
     const authorization = req.headers.get("Authorization") || "";
-    if (!authorization) return safeError(401, "UNAUTHENTICATED");
+    if (!authorization) return safeError(req, 401, "UNAUTHENTICATED");
 
     const authClient = createClient(supabaseUrl, anonKey, {
       auth: { persistSession: false },
       global: { headers: { Authorization: authorization } }
     });
     const { data: userData, error: userError } = await authClient.auth.getUser();
-    if (userError || !userData || !userData.user) return safeError(401, "UNAUTHENTICATED");
+    if (userError || !userData || !userData.user) return safeError(req, 401, "UNAUTHENTICATED");
 
     const body = await req.json().catch(() => null);
     const parsed = contract.normalizeStyleIds(body && body.styleIds);
-    if (!parsed.ok) return safeError(400, parsed.error);
+    if (!parsed.ok) return safeError(req, 400, parsed.error);
 
     const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
     });
 
     const companyScope = await deriveCompanyScope(serviceClient, userData.user, body || {});
-    if (!companyScope.ok) return safeError(companyScope.status, companyScope.error);
+    if (!companyScope.ok) return safeError(req, companyScope.status, companyScope.error);
 
     const [authorizationScope, activeConfig] = await Promise.all([
       buildAuthorizationScope(serviceClient, companyScope, parsed.styleIds),
@@ -309,11 +329,11 @@ Deno.serve(async (req: Request) => {
       results
     };
     if (contract.responseContainsForbiddenKey(response)) {
-      return safeError(500, "COST_RESPONSE_PRIVACY_FAILURE");
+      return safeError(req, 500, "COST_RESPONSE_PRIVACY_FAILURE");
     }
-    return json(response);
+    return json(response, { headers: responseHeaders });
   } catch (err) {
     console.error("calculate-style-cost failed", err instanceof Error ? err.message : String(err));
-    return safeError(500, "COSTING_SERVICE_ERROR");
+    return safeError(req, 500, "COSTING_SERVICE_ERROR");
   }
 });
