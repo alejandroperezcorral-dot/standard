@@ -3982,7 +3982,7 @@ function costDisplayForRow(r){
     fob:fob,fobT:null,ldp:null,imu:null,mu:null,gap:null,cu:null,cust:null,custPct:null,days:null,hod:null
   };
 }
-function costHasNumber(c,field){return !!c&&Number.isFinite(Number(c[field]));}
+function costHasNumber(c,field){return !!c&&c[field]!=null&&c[field]!==''&&Number.isFinite(Number(c[field]));}
 function costUsd(v){return Number.isFinite(Number(v))?fU(Number(v)):'\u2014';}
 function costPercent(v){return Number.isFinite(Number(v))?fP(Number(v)):'\u2014';}
 function costMarkup(v){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(0)+'%':'\u2014';}
