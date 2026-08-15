@@ -30,7 +30,7 @@ global.escHtml = value => String(value || '');
 ].forEach(file => vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file }));
 
 function createMemoryRepository() {
-  const state = { styles: [], linkedRows: [] };
+  const state = { styles: [], contexts: [], linkedRows: [] };
   return {
     state,
     insertStyle(row) {
@@ -41,6 +41,17 @@ function createMemoryRepository() {
     linkNegotiationRow(rowId, styleId) {
       state.linkedRows.push({ rowId, styleId });
       return Promise.resolve({ data: null, error: null });
+    },
+    selectBrandStyleContext(brandCompanyId, styleId) {
+      return Promise.resolve({
+        data: state.contexts.find(ctx => ctx.brand_company_id === brandCompanyId && ctx.style_id === styleId) || null,
+        error: null
+      });
+    },
+    insertBrandStyleContext(row) {
+      const data = Object.assign({ id: `ctx-${state.contexts.length + 1}` }, row);
+      state.contexts.push(data);
+      return Promise.resolve({ data, error: null });
     }
   };
 }
@@ -74,6 +85,49 @@ function createMemoryRepository() {
   assert.strictEqual(legacyRow.style_id, style.id);
   assert.strictEqual(legacyRow.canonical_style_id, style.id);
   assert.deepStrictEqual(repo.state.linkedRows, [{ rowId: 9001, styleId: style.id }]);
+
+  global.AUTH_USER = { id: 'brand-user', email: 'buyer@gloria.test' };
+  global.AUTH_PROFILE = {
+    company_id: 'brand-co',
+    company_name: 'Gloria Jeans',
+    company_type: 'Brand',
+    role: 'company admin'
+  };
+  global.activeCompanyName = () => 'Gloria Jeans';
+  global.activeCompanyType = () => 'Brand';
+
+  const brandRow = {
+    id: 9002,
+    source: 'BUYER',
+    modelo: 'GJ-9002',
+    desc: 'Brand created overshirt',
+    supplier: 'Gloria Jeans',
+    origin: 'Bangladesh'
+  };
+
+  const brandStyle = await StyleCreationRuntime.persistCanonicalForLegacyRow(brandRow, {
+    id: brandRow.id,
+    styleRef: brandRow.modelo,
+    title: brandRow.desc,
+    supplier: brandRow.supplier,
+    origin: brandRow.origin,
+    departmentId: 'dept-brand-denim',
+    categoryId: 'cat-brand-overshirts',
+    fob: 8.75
+  });
+
+  assert(brandStyle, 'A canonical style should be created for the brand row.');
+  assert.strictEqual(brandStyle.created_by_type, 'BRAND');
+  assert.strictEqual(brandStyle.owner_company_id, 'brand-co');
+  assert.strictEqual(brandRow.style_id, brandStyle.id);
+  assert.strictEqual(brandRow.canonical_style_id, brandStyle.id);
+  assert.strictEqual(repo.state.contexts.length, 1);
+  assert.strictEqual(repo.state.contexts[0].brand_company_id, 'brand-co');
+  assert.strictEqual(repo.state.contexts[0].style_id, brandStyle.id);
+  assert.strictEqual(repo.state.contexts[0].department_id, 'dept-brand-denim');
+  assert.strictEqual(repo.state.contexts[0].category_id, 'cat-brand-overshirts');
+  assert.strictEqual(brandRow.brand_style_context_id, repo.state.contexts[0].id);
+  assert.strictEqual(brandRow.brand_style_context_missing_taxonomy, false);
 
   console.log('style creation runtime bridge characterization ok');
 })();

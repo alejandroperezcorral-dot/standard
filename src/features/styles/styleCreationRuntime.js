@@ -132,17 +132,43 @@ var StyleCreationRuntime=(function(){
     var repo=repository();
     if(!repo||!StylesDomain.creation.service||!window.AUTH_USER)return null;
     try{
+      input=input||{};
+      var createdByType=normalizeStyleCreatedByType(row&&row.source||row&&row.product_source||styleSource(row));
       var style=await StylesDomain.creation.service.createStyle(input||{},{
         repository:repo,
         user:window.AUTH_USER,
         profile:window.AUTH_PROFILE||{},
-        createdByType:row&&row.source||row&&row.product_source||styleSource(row)
+        createdByType:createdByType
       });
       if(row&&style&&style.id){
         row.style_id=style.id;
         row.canonical_style_id=style.id;
         try{await repo.linkNegotiationRow(row.id,style.id);}catch(linkError){
           if(!canonicalAvailableError(linkError))console.warn('Style legacy link failed',linkError);
+        }
+        if(createdByType==='BRAND'){
+          try{
+            var company=StylesDomain.creation.service.profileCompany(window.AUTH_PROFILE||{});
+            var brandContext=await StylesDomain.creation.service.getOrCreateBrandStyleContext({
+              brandCompanyId:company.id,
+              styleId:style.id,
+              departmentId:input.departmentId||input.department_id||null,
+              categoryId:input.categoryId||input.category_id||null,
+              targetPrice:input.targetPrice||input.target_price||input.fob||null,
+              targetCurrency:input.targetCurrency||input.target_currency||'USD',
+              internalStatus:input.status||'PENDING'
+            },{
+              repository:repo,
+              user:window.AUTH_USER,
+              profile:window.AUTH_PROFILE||{}
+            });
+            if(row&&brandContext&&brandContext.id)row.brand_style_context_id=brandContext.id;
+            if(row&&brandContext){
+              row.brand_style_context_missing_taxonomy=!(brandContext.department_id&&brandContext.category_id);
+            }
+          }catch(contextError){
+            if(!canonicalAvailableError(contextError))console.warn('Brand style context save failed',contextError);
+          }
         }
       }
       return style;
