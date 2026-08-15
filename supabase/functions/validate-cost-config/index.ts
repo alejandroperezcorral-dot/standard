@@ -4,27 +4,12 @@ import "../../../src/features/costing/core/costModel001WorkbookDefaults.js";
 import "../../../src/features/costing/core/costModel001.js";
 import "../../../src/features/costing/core/costConfigValidator.js";
 import "../calculate-style-cost/contract.js";
+import { corsHeaders, preflightResponse } from "../_shared/cors.ts";
 
 type JsonResponseInit = ResponseInit & { status?: number };
 
 const validator = (globalThis as any).CostConfigValidator;
 const contract = (globalThis as any).StdtexCostingEdgeContract;
-
-const ALLOWED_ORIGINS = new Set([
-  "http://127.0.0.1:8790",
-  "http://localhost:8790"
-]);
-
-function corsHeaders(req: Request) {
-  const origin = req.headers.get("Origin") || "";
-  if (!ALLOWED_ORIGINS.has(origin)) return {};
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Vary": "Origin",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, OPTIONS"
-  };
-}
 
 function json(data: unknown, init: JsonResponseInit = {}) {
   return new Response(JSON.stringify(data), {
@@ -108,7 +93,7 @@ async function assertCanValidate(serviceClient: any, user: any, config: any) {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(req) });
+    return preflightResponse(req);
   }
   if (req.method !== "POST") return safeError(req, 405, "METHOD_NOT_ALLOWED");
   try {
