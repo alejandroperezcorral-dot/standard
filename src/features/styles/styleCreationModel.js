@@ -46,7 +46,7 @@ function styleCreationMainImage(row){
 function inferCreatedByTypeFromRow(row,context){
   context=context||{};
   if(context.createdByType)return normalizeStyleCreatedByType(context.createdByType);
-  if(row&&isSupplierShowroomStyle&&isSupplierShowroomStyle(row))return STYLE_CREATED_BY_TYPES.SUPPLIER;
+  if(row&&typeof isSupplierShowroomStyle==='function'&&isSupplierShowroomStyle(row))return STYLE_CREATED_BY_TYPES.SUPPLIER;
   return normalizeStyleCreatedByType(row&&(row.created_by_type||row.product_source||row.source));
 }
 
@@ -76,8 +76,8 @@ function canonicalStyleFromNegotiationRow(row,context){
     master_attributes:{
       style_ref:row.modelo||'',
       description:row.description||row.desc||'',
-      supplier_reference:styleSupplierReference?styleSupplierReference(row):(row.supplier_ref||''),
-      fabric_reference:styleFabricReference?styleFabricReference(row):(row.fabric_ref||''),
+      supplier_reference:typeof styleSupplierReference==='function'?styleSupplierReference(row):(row.supplier_ref||''),
+      fabric_reference:typeof styleFabricReference==='function'?styleFabricReference(row):(row.fabric_ref||''),
       origin:row.origin||'',
       supplier:supplierName,
       season:row.temporada||row.season||'',

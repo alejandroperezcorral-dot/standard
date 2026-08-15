@@ -23,6 +23,8 @@ var StylesDomain={
     createBrandContext:createBrandStyleContextModel,
     validateBrandContext:validateBrandStyleContextModel,
     brandCanSeeContext:brandCanSeeBrandStyleContextModel,
+    createRepository:typeof createStyleCreationRepository==='function'?createStyleCreationRepository:null,
+    service:typeof StyleCreationService==='object'?StyleCreationService:null,
     createRfq:createStyleRfqModel,
     createQuotation:createStyleQuotationModel,
     confirmedOutcomeClosesCanonicalStyle:confirmedOutcomeClosesCanonicalStyleModel

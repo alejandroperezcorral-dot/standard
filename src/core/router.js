@@ -6,6 +6,7 @@ function routePathForPage(name,state){
   state=state||{};
   if(name==='showroom')return state.collectionsView?'/collections':'/explore';
   if(name==='company')return '/mycompany';
+  if(name==='styles')return '/styles';
   if(name==='neg')return '/negotiation';
   if(name==='closed')return '/closed';
   if(name==='suppliers')return '/suppliers';

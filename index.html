@@ -34,7 +34,10 @@
 <script src="src/features/styles/styleCreationModel.js"></script>
 <script src="src/features/styles/styleRepository.js"></script>
 <script src="src/features/styles/styleService.js"></script>
+<script src="src/features/styles/styleCreationRepository.js"></script>
+<script src="src/features/styles/styleCreationService.js"></script>
 <script src="src/features/styles/index.js"></script>
+<script src="src/features/styles/styleCreationRuntime.js"></script>
 <script src="src/features/costing/core/costModel001WorkbookDefaults.js"></script>
 <script src="src/features/costing/core/costModel001.js"></script>
 <script src="src/features/costing/core/costConfigValidator.js"></script>
@@ -1207,6 +1210,7 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
 <aside id="platform-sidebar" class="platform-sidebar">
   <button class="platform-side-logo" onclick="showroomExploreAll()" title="Explore">stdtex</button>
   <button class="platform-side-btn" id="side-explore" onclick="showroomExploreAll()" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.4 8.6-2.1 4.7-4.7 2.1 2.1-4.7 4.7-2.1z"/></svg><span class="platform-side-label">Explore</span></button>
+  <button class="platform-side-btn pin-auth-only" id="side-styles" onclick="goTab('styles')" title="My Styles"><span>*</span><span class="platform-side-label">My Styles</span></button>
   <button class="platform-side-btn pin-auth-only" id="side-collections" onclick="openManageCollections()" title="My Collections"><span>Ã¢â€“Â¦</span><span class="platform-side-label">My Collections</span></button>
   <button class="platform-side-btn pin-auth-only" id="side-canvas" onclick="goTab('canvas')" title="Canvas"><span>□</span><span class="platform-side-label">Canvas</span></button>
   <button class="platform-side-btn pin-auth-only" id="side-board" onclick="openBoardView()" title="Board"><span>Ã¢â€“Â¡</span><span class="platform-side-label">Board</span></button>
@@ -1536,6 +1540,11 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
 <!-- COMPANY -->
 <div id="pg-company" class="pg">
   <div class="platform-page" id="company-page-body"></div>
+</div>
+
+<!-- MY STYLES -->
+<div id="pg-styles" class="pg">
+  <div class="platform-page" id="styles-page-body"></div>
 </div>
 
 <!-- SUPPLIERS -->
@@ -2337,7 +2346,7 @@ function requireAuthAction(){
 
 function clearLoggedOutAppSurface(){
   document.body.classList.remove('showroom-home','pin-platform-on','platform-sidebar-on','chat-page-on','legacy-buying-shell-on','canvas-editing','canvas-nav-open');
-  ['showroom','neg','closed','dash','settings','help','suppliers','company','admin','chat','canvas'].forEach(function(id){
+  ['showroom','styles','neg','closed','dash','settings','help','suppliers','company','admin','chat','canvas'].forEach(function(id){
     var el=document.getElementById('pg-'+id)||document.getElementById(id);
     if(el)el.classList.remove('on');
   });
@@ -3250,7 +3259,7 @@ function updatePlatformSidebar(){
   normalizePlatformSidebar();
   updateCompanyLogos();
   var current=activePageName();
-  var enabled=['showroom','neg','closed','suppliers','company','admin','chat','canvas'].indexOf(current)>=0;
+  var enabled=['showroom','styles','neg','closed','suppliers','company','admin','chat','canvas'].indexOf(current)>=0;
   document.body.classList.toggle('platform-sidebar-on',enabled);
   if(!enabled)return;
   document.querySelectorAll('.pin-auth-only').forEach(function(el){el.style.display=AUTH_USER?'flex':'none';});
@@ -3262,7 +3271,7 @@ function updatePlatformSidebar(){
   });
   var name=current;
   if(name==='closed')name='neg';
-  ['explore','collections','canvas','neg','suppliers','company','chat','admin'].forEach(function(k){
+  ['explore','styles','collections','canvas','neg','suppliers','company','chat','admin'].forEach(function(k){
     var b=document.getElementById('side-'+k);if(b)b.classList.remove('on');
   });
   if(activePageName()==='showroom'){
@@ -8160,6 +8169,7 @@ function applyRouteFromLocation(){
   _routeApplying=true;
   try{
     if(p==='/collections'){openManageCollections();return true;}
+    if(p==='/styles'){goTab('styles');return true;}
     if(p==='/mycompany'){goTab('company');return true;}
     if(p==='/negotiation'){openNegotiationList('neg');return true;}
     if(p==='/closed'){openNegotiationList('closed');return true;}
@@ -8194,14 +8204,14 @@ function normalizePlatformSidebar(){
   var board=document.getElementById('side-board');if(board)board.remove();
   var showroom=document.getElementById('side-showroom');if(showroom)showroom.remove();
   var logo=document.querySelector('.platform-side-logo');if(logo)logo.removeAttribute('title');
-  [['side-explore','explore'],['side-collections','collections'],['side-canvas','canvas'],['side-neg','neg'],['side-suppliers','suppliers'],['side-company','company'],['side-chat','chat'],['side-admin','admin']].forEach(function(pair){
+  [['side-explore','explore'],['side-styles','styles'],['side-collections','collections'],['side-canvas','canvas'],['side-neg','neg'],['side-suppliers','suppliers'],['side-company','company'],['side-chat','chat'],['side-admin','admin']].forEach(function(pair){
     var b=document.getElementById(pair[0]);if(!b)return;
     b.removeAttribute('title');
     b.innerHTML=platformIcon(pair[1]);
   });
   var chat=document.getElementById('side-chat'),spacer=document.querySelector('.platform-side-spacer'),admin=document.getElementById('side-admin');
   if(chat)chat.classList.add('pin-auth-only');
-  var logo=document.querySelector('.platform-side-logo'),collections=document.getElementById('side-collections'),canvas=document.getElementById('side-canvas'),explore=document.getElementById('side-explore'),suppliers=document.getElementById('side-suppliers'),neg=document.getElementById('side-neg');
+  var logo=document.querySelector('.platform-side-logo'),collections=document.getElementById('side-collections'),canvas=document.getElementById('side-canvas'),explore=document.getElementById('side-explore'),styles=document.getElementById('side-styles'),suppliers=document.getElementById('side-suppliers'),neg=document.getElementById('side-neg');
   if(explore&&logo&&explore.previousElementSibling!==logo)logo.parentNode.insertBefore(explore,logo.nextSibling);
   if(collections&&explore&&collections.previousElementSibling!==explore)explore.parentNode.insertBefore(collections,explore.nextSibling);
   if(canvas&&collections&&canvas.previousElementSibling!==collections)collections.parentNode.insertBefore(canvas,collections.nextSibling);
@@ -8213,7 +8223,7 @@ function normalizePlatformSidebar(){
 }
 function syncPinPlatform(name){
   name=name||activePageName();
-  var main=(name==='showroom'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas');
+  var main=(name==='showroom'||name==='styles'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas');
   document.body.classList.toggle('pin-platform-on',main);
   document.body.classList.toggle('platform-sidebar-on',main);
   document.body.classList.toggle('chat-page-on',name==='chat');
@@ -8230,7 +8240,7 @@ function syncPinPlatform(name){
     else if(name==='suppliers')q.value=SUPPLIERS_SEARCH||'';
     else if(name==='showroom')q.value=SHOWROOM_COLLECTIONS_VIEW?(COLLECTION_SEARCH||''):(EXPLORE_SEARCH||'');
     else q.value=e?e.value:'';
-    q.placeholder=name==='canvas'?'Buscar canvas':(name==='chat'?'Buscar chats y modelos':(name==='suppliers'?'Buscar suppliers':(name==='closed'?'Buscar closed styles':(name==='neg'?'Buscar negotiation styles':'Buscar en tablero'))));
+    q.placeholder=name==='canvas'?'Buscar canvas':(name==='styles'?'Buscar my styles':(name==='chat'?'Buscar chats y modelos':(name==='suppliers'?'Buscar suppliers':(name==='closed'?'Buscar closed styles':(name==='neg'?'Buscar negotiation styles':'Buscar en tablero')))));
   }
   updatePlatformSidebar();
 }
@@ -8290,9 +8300,9 @@ function goTab(name){
   document.body.classList.toggle('chat-page-on',name==='chat');
   document.body.classList.toggle('legacy-buying-shell-on',name==='neg');
   if(name!=='canvas'||!CANVAS_CURRENT_ID)document.body.classList.remove('canvas-editing','canvas-nav-open');
-  document.body.classList.toggle('pin-platform-on',name==='showroom'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas');
+  document.body.classList.toggle('pin-platform-on',name==='showroom'||name==='styles'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas');
   document.body.classList.add('platform-sidebar-on');
-  ['showroom','neg','closed','suppliers','company','admin','chat','canvas','help','settings'].forEach(function(p){
+  ['showroom','styles','neg','closed','suppliers','company','admin','chat','canvas','help','settings'].forEach(function(p){
     var pg=document.getElementById('pg-'+p);if(pg)pg.className='pg'+(p===name?' on':'');
   });
   ['showroom','neg','closed'].forEach(function(p){var t=document.getElementById('t-'+p);if(t)t.className='ntab'+(p===name?' on':'');});
@@ -8303,7 +8313,7 @@ function goTab(name){
     var nav=document.getElementById('nav');
     var sbEl=document.getElementById('sb');
     var sbEdge=document.getElementById('sb-edge');
-    var isMainTab=(name==='showroom'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat');
+    var isMainTab=(name==='showroom'||name==='styles'||name==='neg'||name==='closed'||name==='suppliers'||name==='company'||name==='admin'||name==='chat');
     if(nav)nav.style.display=isMainTab?'':'none';
     if(sbEl)sbEl.style.display=(name==='neg')?'':'none';
     if(sbEdge)sbEdge.style.display=(name==='neg')?'':'none';
@@ -8314,12 +8324,13 @@ function goTab(name){
     var oldEdge=document.getElementById('sb-edge');if(oldEdge)oldEdge.style.display='none';
   }
   if(name==='showroom')renderShowroom();
+  if(name==='styles'&&window.StyleCreationRuntime)StyleCreationRuntime.renderMyStylesPage();
   if(name==='neg')renderNeg();
   if(name==='closed')renderClosed();
   if(name==='suppliers')renderSuppliersPage();
   if(name==='company')renderCompanyPage();
   if(name==='admin')renderAdminPage();
-  if(name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas'){var k=document.getElementById('kpis');if(k)k.innerHTML='';}
+  if(name==='styles'||name==='suppliers'||name==='company'||name==='admin'||name==='chat'||name==='canvas'){var k=document.getElementById('kpis');if(k)k.innerHTML='';}
   if(name==='chat')renderChatPage();
   if(name==='canvas')renderCanvasPage();
   updatePlatformSidebar();
