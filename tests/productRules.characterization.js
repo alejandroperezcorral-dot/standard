@@ -5,6 +5,7 @@ const assert = require('assert');
 [
   'src/core/permissions.js',
   'src/features/styles/styleModel.js',
+  'src/features/styles/styleCreationModel.js',
   'src/features/styles/styleRepository.js',
   'src/features/styles/styleService.js',
   'src/features/styles/index.js',

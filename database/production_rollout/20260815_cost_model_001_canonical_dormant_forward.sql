@@ -18,6 +18,58 @@ begin
 end $$;
 create extension if not exists pgcrypto with schema extensions;
 
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to authenticated;
+grant usage on schema private to service_role;
+
+-- Costing depends on the same organization authorization sources production already uses:
+-- platform admin identity in profiles/auth email and active Company Admin memberships.
+create or replace function private.current_is_platform_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'hello@athletestandards.com'
+    or exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and (
+          p.role = 'admin'
+          or p.access_role = 'Platform Admin'
+          or lower(coalesce(p.email, '')) = 'hello@athletestandards.com'
+        )
+    );
+$$;
+
+create or replace function private.current_is_company_admin_for(target_company_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    private.current_is_platform_admin()
+    or exists (
+      select 1
+      from public.company_memberships cm
+      where cm.user_id = auth.uid()
+        and cm.company_id = target_company_id
+        and cm.membership_status = 'Active'
+        and cm.access_role = 'Company Admin'
+    );
+$$;
+
+revoke all on function private.current_is_platform_admin() from public, anon;
+revoke all on function private.current_is_company_admin_for(uuid) from public, anon;
+grant execute on function private.current_is_platform_admin() to authenticated, service_role;
+grant execute on function private.current_is_company_admin_for(uuid) to authenticated, service_role;
+
 do $$
 begin
   if to_regprocedure('private.current_is_platform_admin()') is null then

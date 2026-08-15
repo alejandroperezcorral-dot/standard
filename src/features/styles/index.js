@@ -10,5 +10,21 @@ var StylesDomain={
   brandCollectionMap:styleBrandCollectionMapFromNotes,
   fromNegotiationRow:styleFromNegotiationRow,
   normalizeNegotiationRows:normalizeNegotiationRowsAsStyles,
-  selectRows:selectNegotiationRowsForStyles
+  selectRows:selectNegotiationRowsForStyles,
+  creation:{
+    createdByTypes:STYLE_CREATED_BY_TYPES,
+    lifecycleStates:STYLE_LIFECYCLE_STATES,
+    publicationStates:STYLE_PUBLICATION_STATES,
+    myStylesTabs:MY_STYLES_TABS,
+    normalizeCreatedByType:normalizeStyleCreatedByType,
+    canonicalFromNegotiationRow:canonicalStyleFromNegotiationRow,
+    myStylesTabForStyle:myStylesTabForCanonicalStyle,
+    supplierCanPublishToExplore:supplierStyleCanPublishToExplore,
+    createBrandContext:createBrandStyleContextModel,
+    validateBrandContext:validateBrandStyleContextModel,
+    brandCanSeeContext:brandCanSeeBrandStyleContextModel,
+    createRfq:createStyleRfqModel,
+    createQuotation:createStyleQuotationModel,
+    confirmedOutcomeClosesCanonicalStyle:confirmedOutcomeClosesCanonicalStyleModel
+  }
 };
