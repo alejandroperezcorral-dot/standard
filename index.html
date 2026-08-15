@@ -7227,6 +7227,31 @@ async function savePublicShowroomRow(row){
     }
     if(res&&res.error)throw res.error;
     if(res&&res.data&&res.data.id)row.id=res.data.id;
+    if(window.StyleCreationRuntime&&StyleCreationRuntime.persistCanonicalForLegacyRow){
+      var canonicalStyle=await StyleCreationRuntime.persistCanonicalForLegacyRow(row,{
+        id:row.id,
+        legacyNegotiationRowId:row.id,
+        styleRef:row.modelo||'',
+        supplierReference:typeof styleSupplierRef==='function'?styleSupplierRef(row):(row.supplier_ref||row.modelo||''),
+        fabricReference:typeof styleFabricRef==='function'?styleFabricRef(row):(row.fabric_ref||''),
+        title:row.desc||row.description||row.modelo||'',
+        description:baseNotes(row.notes)||row.desc||row.description||'',
+        color:row.colour||'',
+        origin:row.origin||'',
+        season:row.temporada||'',
+        supplier:row.supplier||'',
+        mainImage:row.photo||'',
+        secondaryImage:row.photo2||'',
+        units:row.units||null,
+        fob:row.fob1||row.fob_closed||null,
+        department:row.dept||'',
+        category:row.cat||'',
+        collection:row.capsule||'',
+        fsd:row.fsd||null,
+        status:row.status||'PENDING'
+      });
+      if(canonicalStyle&&canonicalStyle.id)payload.style_id=canonicalStyle.id;
+    }
     save();
     toast('Style submitted to Showroom','ok');
     return true;

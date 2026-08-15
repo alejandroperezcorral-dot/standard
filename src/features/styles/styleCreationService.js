@@ -43,6 +43,7 @@ function createCanonicalStylePayload(input,context){
     owner_company_name:company.name,
     creator_company_id:company.id,
     creator_company_name:company.name,
+    legacy_negotiation_row_id:input.legacyNegotiationRowId||input.legacy_negotiation_row_id||input.id||null,
     lifecycle_state:STYLE_LIFECYCLE_STATES.ACTIVE,
     publication_state:STYLE_PUBLICATION_STATES.PRIVATE,
     supplier_reference:styleCreationNormText(input.supplierReference||input.supplier_reference),

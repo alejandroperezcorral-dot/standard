@@ -139,6 +139,7 @@ var StyleCreationRuntime=(function(){
         createdByType:row&&row.source||row&&row.product_source||styleSource(row)
       });
       if(row&&style&&style.id){
+        row.style_id=style.id;
         row.canonical_style_id=style.id;
         try{await repo.linkNegotiationRow(row.id,style.id);}catch(linkError){
           if(!canonicalAvailableError(linkError))console.warn('Style legacy link failed',linkError);
