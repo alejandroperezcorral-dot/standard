@@ -50,6 +50,7 @@
 <script src="src/features/costing/settings/costingSettingsRepository.js"></script>
 <script src="src/features/costing/settings/costingSettingsState.js"></script>
 <script src="src/features/costing/settings/costingSettingsService.js"></script>
+<script src="src/features/costing/costingRuntime.js"></script>
 <script src="src/features/costing/settings/costingSettingsRenderer.js"></script>
 <script src="src/features/costing/settings/index.js"></script>
 <script src="src/features/explore/exploreModel.js"></script>
@@ -3848,6 +3849,8 @@ function dutyFor(org,cat){
   return best?{fixed:best.fixed,pct:best.pct}:{fixed:0,pct:0.13};
 }
 function costModel001RuntimeConfiguration(){
+  var active=activeCostingRuntimeConfiguration();
+  if(active)return active;
   return {
     assumptions:{
       insuranceRate:P.ins,
@@ -3865,7 +3868,15 @@ function costModel001RuntimeConfiguration(){
   };
 }
 function cm(r){
-  return CostingDomain.evaluateModel001(r,costModel001RuntimeConfiguration());
+  if(window.StdtexCostingRuntime){
+    return StdtexCostingRuntime.evaluateLegacyRow({
+      domain:CostingDomain,
+      companyId:costingTargetCompanyId(),
+      companyName:costingCompanyName(),
+      row:r
+    });
+  }
+  return {status:'NOT_AVAILABLE',reason:'COSTING_RUNTIME_UNAVAILABLE',unavailable:true};
 }
 
 var COST_RESULTS_BY_STYLE_ID={};
@@ -3875,11 +3886,47 @@ var COSTING_REQUEST_GENERATION=0;
 var COSTING_LAST_EDGE_CALLS=0;
 var COSTING_LAST_BATCH_SIZES=[];
 
+function costingCompanyName(){
+  var ep=effectiveProfile?effectiveProfile():null;
+  if(ep){
+    if(typeof profileCompanyValue==='function'){
+      var fromProfile=profileCompanyValue(ep);
+      if(fromProfile)return fromProfile;
+    }
+    var direct=ep.active_company_name||ep.company_name||ep.supplier_company||'';
+    if(direct)return direct;
+  }
+  return typeof activeCompanyName==='function'?(activeCompanyName()||''):'';
+}
+function costingCompanyCacheKey(){
+  return window.StdtexCostingRuntime?StdtexCostingRuntime.cacheKey({companyId:costingTargetCompanyId(),companyName:costingCompanyName()}):(costingTargetCompanyId()||String(costingCompanyName()||'').trim().toLowerCase());
+}
+function activeCostingRuntimeConfiguration(){
+  if(!window.StdtexCostingRuntime||!window.CostingDomain)return null;
+  return StdtexCostingRuntime.activeConfiguration({
+    domain:CostingDomain,
+    companyId:costingTargetCompanyId(),
+    companyName:costingCompanyName()
+  });
+}
+async function ensureActiveCostingConfiguration(reason){
+  if(!window.StdtexCostingRuntime)return;
+  return StdtexCostingRuntime.ensureActiveConfiguration({
+    authUser:AUTH_USER,
+    client:window.sb,
+    settingsService:window.CostingSettingsService,
+    companyId:costingTargetCompanyId(),
+    companyName:costingCompanyName(),
+    reason:reason,
+    onChange:rerenderCostingConsumers
+  });
+}
 function styleIdKey(rowOrId){
-  var value=rowOrId&&typeof rowOrId==='object'?rowOrId.id:rowOrId;
+  var value=rowOrId&&typeof rowOrId==='object'?(rowOrId.style_id||rowOrId.styleId||null):rowOrId;
   return window.StdtexCostingCalculationService?StdtexCostingCalculationService.normalizeStyleId(value):null;
 }
 function resetCostResultState(){
+  if(window.StdtexCostingRuntime)StdtexCostingRuntime.clear();
   COST_RESULTS_BY_STYLE_ID={};
   COST_LOADING_STYLE_IDS={};
   COSTING_ERROR_BY_STYLE_ID={};
@@ -3969,6 +4016,40 @@ function costResultForRow(r){
 function costDisplayForRow(r){
   var result=costResultForRow(r);
   var fob=firstNumeric(result&&result.fob,result&&result.selectedFob,r&&r.fob_closed,r&&r.fob3,r&&r.fob2,r&&r.fob1);
+  function unavailableDisplay(status,reason){
+    return {
+      ready:false,
+      status:status||'NOT_AVAILABLE',
+      reason:reason||'',
+      fob:fob,fobT:null,ldp:null,imu:null,mu:null,gap:null,cu:null,cust:null,custPct:null,days:null,hod:null
+    };
+  }
+  function localModelDisplay(status,reason){
+    if(typeof cm!=='function')return unavailableDisplay(status,reason);
+    try{
+      var local=cm(r||{});
+      if(!local)return unavailableDisplay(status,reason);
+      if(local.unavailable)return unavailableDisplay(local.status||status,local.reason||reason);
+      return {
+        ready:false,
+        status:status||local.status||'LOCAL_MODEL',
+        reason:reason||'',
+        fob:firstNumeric(local.fob,local.selectedFob,fob),
+        fobT:local.fobT!=null?local.fobT:local.targetFob,
+        ldp:local.ldp!=null?local.ldp:local.landedCost,
+        imu:local.imu,
+        mu:local.mu!=null?local.mu:local.markup,
+        gap:local.gap,
+        cu:local.cu!=null?local.cu:local.freightPerUnit,
+        cust:local.cust!=null?local.cust:local.customs,
+        custPct:local.custPct!=null?local.custPct:local.customsPct,
+        days:local.days!=null?local.days:local.transitDays,
+        hod:local.hod||null
+      };
+    }catch(e){
+      return unavailableDisplay(status||'LOCAL_MODEL_ERROR',reason||(e&&e.message?e.message:String(e||'')));
+    }
+  }
   if(result&&result.status==='READY'){
     return {
       ready:true,status:result.status,reason:result.reason||'',
@@ -3985,21 +4066,21 @@ function costDisplayForRow(r){
       hod:result.hod
     };
   }
-  return {
-    ready:false,
-    status:result&&result.status?result.status:(COST_LOADING_STYLE_IDS[styleIdKey(r)]?'LOADING':(COSTING_ERROR_BY_STYLE_ID[styleIdKey(r)]?'ERROR':'NOT_AVAILABLE')),
-    reason:(result&&result.reason)||COSTING_ERROR_BY_STYLE_ID[styleIdKey(r)]||'',
-    fob:fob,fobT:null,ldp:null,imu:null,mu:null,gap:null,cu:null,cust:null,custPct:null,days:null,hod:null
-  };
+  var key=styleIdKey(r);
+  var status=result&&result.status?result.status:(COST_LOADING_STYLE_IDS[key]?'LOADING':(COSTING_ERROR_BY_STYLE_ID[key]?'ERROR':'LOCAL_MODEL'));
+  var reason=(result&&result.reason)||COSTING_ERROR_BY_STYLE_ID[key]||'';
+  if(key)return unavailableDisplay(status,reason);
+  return localModelDisplay(status,reason);
 }
 function costHasNumber(c,field){return !!c&&c[field]!=null&&c[field]!==''&&Number.isFinite(Number(c[field]));}
-function costUsd(v){return Number.isFinite(Number(v))?fU(Number(v)):'\u2014';}
-function costPercent(v){return Number.isFinite(Number(v))?fP(Number(v)):'\u2014';}
-function costMarkup(v){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(0)+'%':'\u2014';}
-function costGap(v){return Number.isFinite(Number(v))?(Number(v)>=0?'+':'')+(Number(v)*100).toFixed(1)+'pp':'\u2014';}
+function isCostDisplayNumber(v){return v!=null&&v!==''&&Number.isFinite(Number(v));}
+function costUsd(v){return isCostDisplayNumber(v)?fU(Number(v)):'\u2014';}
+function costPercent(v){return isCostDisplayNumber(v)?fP(Number(v)):'\u2014';}
+function costMarkup(v){return isCostDisplayNumber(v)?(Number(v)*100).toFixed(0)+'%':'\u2014';}
+function costGap(v){return isCostDisplayNumber(v)?(Number(v)>=0?'+':'')+(Number(v)*100).toFixed(1)+'pp':'\u2014';}
 function costColor(c){return costHasNumber(c,'gap')?icl(c.gap):'#9ca3af';}
 function costExportNumber(v,decimals){
-  return Number.isFinite(Number(v))?+Number(v).toFixed(decimals==null?2:decimals):'';
+  return isCostDisplayNumber(v)?+Number(v).toFixed(decimals==null?2:decimals):'';
 }
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ HOD/FSD Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -5057,6 +5138,7 @@ function renderStyleDetail(){
   var body=document.getElementById('style-detail-body');if(!body)return;
   var r=ROWS.filter(function(x){return x.id===_detailStyleId;})[0];if(!r){body.innerHTML='';return;}
   _chatStyleId=_detailStyleId;
+  ensureActiveCostingConfiguration('style-detail');
   ensureCostResultsForRows([r],'style-detail');
   var c=costDisplayForRow(r),img=r.photo||r.photo2||'',files=styleFiles(r),supplierRef=styleSupplierRef(r),fabricRef=styleFabricRef(r);
   var h='<div class="drawer-topbar"><button class="drawer-back" onclick="closeStyleDetail()">&#8592; Back to Explore</button><div class="drawer-nav-actions">'+(canUseBuyingList()?'<button class="drawer-nav-btn icon-only" onclick="openStyleInBuyingList('+r.id+')" title="Open in Buying List" aria-label="Open in Buying List">$</button>':'')+'<button class="drawer-nav-btn" onclick="closeStyleDetail()">Done</button></div></div>';
@@ -7347,6 +7429,7 @@ function clearNegFilters(){['f-q'].forEach(function(i){var e=document.getElement
 function renderNeg(){
   // Ã¢â€â‚¬Ã¢â€â‚¬ Cascading filter dropdowns (only real values from PENDING rows) Ã¢â€â‚¬Ã¢â€â‚¬
   var pending=ROWS.filter(function(r){return isOpenBuyingRow(r);});
+  ensureActiveCostingConfiguration('negotiation');
   ensureCostResultsForRows(pending,'negotiation');
   function uniqN(rows,field){var s={};rows.forEach(function(r){var v=r[field]||'';if(v)s[v]=1;});return Object.keys(s).sort();}
   function setDrop(id,label,vals,cur){
@@ -7583,6 +7666,7 @@ function renderClosed(){
     if(CUR_FOLDER!==null&&(r.folder_id||null)!==CUR_FOLDER)return false;
     return true;
   });
+  ensureActiveCostingConfiguration('closed');
 
   // Helper: get unique sorted values from a set of rows for a field
   function uniq(rows,field){var s={};rows.forEach(function(r){var v=r[field]||'';if(v)s[v]=1;});return Object.keys(s).sort();}
