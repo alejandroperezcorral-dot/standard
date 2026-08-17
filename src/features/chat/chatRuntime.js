@@ -30,8 +30,22 @@ function normalizeChatMessage(row){
     editedAt:ChatIdentity.value(row.editedAt||row.edited_at),
     deletedAt:ChatIdentity.value(row.deletedAt||row.deleted_at),
     createdAt:ChatIdentity.value(row.createdAt||row.created_at),
+    senderName:ChatIdentity.value(row.senderName||row.sender_name),
+    senderTitle:ChatIdentity.value(row.senderTitle||row.sender_title),
+    senderCompany:ChatIdentity.value(row.senderCompany||row.sender_company),
     attachments:Array.isArray(row.attachments)?row.attachments.map(normalizeChatAttachment):[],
     raw:row
+  };
+}
+function normalizeChatSenderProfile(row){
+  row=row||{};
+  var fullName=[row.first_name,row.last_name].filter(Boolean).join(' ').trim();
+  var company=row.active_company_name||row.company_name||row.supplier_company||'';
+  return {
+    userId:ChatIdentity.value(row.id),
+    name:ChatIdentity.value(fullName||row.email||'Team member'),
+    title:ChatIdentity.value(row.job_position||row.access_role||row.department||''),
+    company:ChatIdentity.value(company)
   };
 }
 
@@ -110,7 +124,25 @@ function createChatRuntime(repository){
               message.attachments=byMessage[message.messageId]||[];
               return message;
             });
-            return messages;
+            if(!repository.loadSenderProfiles)return messages;
+            var senderIds=(messages.data||[]).map(function(message){return message.senderUserId;}).filter(Boolean).filter(function(id,i,a){return a.indexOf(id)===i;});
+            if(!senderIds.length)return messages;
+            return Promise.resolve(repository.loadSenderProfiles(senderIds)).then(function(profileResponse){
+              var profiles=chatRuntimeResult(profileResponse,normalizeChatSenderProfile);
+              if(!profiles.ok)return messages;
+              var byUser={};
+              (profiles.data||[]).forEach(function(profile){if(profile.userId)byUser[profile.userId]=profile;});
+              messages.data=(messages.data||[]).map(function(message){
+                var profile=byUser[message.senderUserId]||null;
+                if(profile){
+                  message.senderName=profile.name;
+                  message.senderTitle=profile.title;
+                  message.senderCompany=profile.company;
+                }
+                return message;
+              });
+              return messages;
+            });
           });
         })
         .catch(function(error){return ChatIdentity.normalizeError(error);});

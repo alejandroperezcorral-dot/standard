@@ -937,6 +937,8 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   #pg-chat .style-chat-msg.system{margin-left:auto;background:#111;color:#fff;border-color:#111}
   #pg-chat .style-chat-msg.system b,#pg-chat .style-chat-msg.system span,#pg-chat .style-chat-msg.system small{color:#fff}
   #pg-chat .style-chat-msg b{font-size:11px;font-weight:950}
+  #pg-chat .style-chat-msg .chat-sender-meta,.canonical-product-chat-embedded .chat-sender-meta{display:block;margin:2px 0 6px;color:#8b93aa;font-size:10px;font-weight:850;font-style:normal;line-height:1.25}
+  #pg-chat .style-chat-msg.system .chat-sender-meta,.canonical-product-chat-embedded .style-chat-msg.system .chat-sender-meta{color:#d1d5db}
   #pg-chat .style-chat-msg span{font-size:13px;line-height:1.45}
   #pg-chat .chat-attachment{display:inline-flex;align-items:center;gap:8px;margin-top:8px;border-radius:14px;background:#fff;border:1px solid #e5e7eb;padding:8px 10px;color:#111;text-decoration:none;font-size:12px;font-weight:900}
   #pg-chat .chat-attachment img{display:block;width:min(260px,62vw);max-height:220px;object-fit:cover;border-radius:12px}
@@ -5087,6 +5089,9 @@ function canonicalChatEnsure(){
       currentGroupId:canonicalChatActiveGroupId,
       currentUserId:function(){return AUTH_USER&&AUTH_USER.id||'';},
       currentCompanyId:function(){return AUTH_PROFILE&&(AUTH_PROFILE.company_id||AUTH_PROFILE.active_company_id)||'';},
+      currentSenderName:function(){var p=effectiveProfile&&effectiveProfile()||{};return [p.first_name,p.last_name].filter(Boolean).join(' ').trim()||p.email||'Team member';},
+      currentSenderTitle:function(){var p=effectiveProfile&&effectiveProfile()||{};return p.job_position||p.access_role||p.department||'';},
+      currentSenderCompany:function(){return activeCompanyName&&activeCompanyName()||'';},
       openChatPage:function(){goTab('chat');},
       openProduct:function(styleId){openStyleDetail({styleId:styleId},true);},
       styleForId:canonicalChatStyleForId,
@@ -5147,6 +5152,10 @@ function removeCanonicalChatPendingAttachment(index){
 function handleCanonicalChatPaste(event){
   var ui=canonicalChatEnsure();if(!ui)return;
   if(ui.handlePaste(event))renderCanonicalChatSurfaces();
+}
+function canonicalChatSurfaceVisible(){
+  var detail=document.getElementById('style-detail-modal'),chat=document.getElementById('pg-chat');
+  return !!((detail&&detail.style.display==='flex'&&detail.querySelector('.canonical-product-chat-embedded'))||(chat&&chat.classList.contains('on')));
 }
 function renderCanonicalChatSurfaces(){
   var ui=canonicalChatEnsure();if(!ui)return;
@@ -9035,7 +9044,15 @@ function _loadFileIntoPhoto(file){
 // If clipboard has an image Ã¢â€ â€™ always capture it (regardless of what's focused)
 // If clipboard has only text Ã¢â€ â€™ pass through normally to the focused input
 document.addEventListener('paste',function(e){
-  if(e.target&&e.target.closest&&e.target.closest('.canonical-chat,.canonical-product-chat-embedded'))return;
+  if(e.target&&e.target.closest&&e.target.closest('.canonical-chat,.canonical-product-chat-embedded')){
+    handleCanonicalChatPaste(e);
+    return;
+  }
+  if(canonicalChatSurfaceVisible()&&canonicalChatEnsure&&canonicalChatEnsure()){
+    var before=e.defaultPrevented;
+    handleCanonicalChatPaste(e);
+    if(e.defaultPrevented&&!before)return;
+  }
   var items=(e.clipboardData||{}).items||[];
   var imgItem=null;
   for(var i=0;i<items.length;i++){

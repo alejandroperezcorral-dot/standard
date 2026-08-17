@@ -59,6 +59,9 @@ function runtimeFixture() {
         conversationId: id,
         senderUserId: userId,
         senderCompanyId: companyId,
+        senderName: 'Alejandro Perez',
+        senderTitle: 'Woven and Denim Buyer',
+        senderCompany: 'Gloria Jeans',
         body: 'Latest note',
         createdAt: '2026-08-17T10:00:00Z',
         attachments: [
@@ -67,6 +70,15 @@ function runtimeFixture() {
           { attachmentId: 'a3', messageId: 'm1', storagePath: 'style_901/bad.pdf', fileName: 'legacy.pdf', contentType: 'application/pdf', byteSize: 12 }
         ]
       }] });
+    },
+    loadSenderProfiles(ids) {
+      calls.push({ type: 'loadSenderProfiles', ids });
+      return Promise.resolve({ ok: true, data: ids.map(id => ({
+        userId: id,
+        name: id === userId ? 'Alejandro Perez' : 'Supplier User',
+        title: id === userId ? 'Woven and Denim Buyer' : 'Account Manager',
+        company: id === userId ? 'Gloria Jeans' : 'A.Z. APPAREL'
+      })) });
     },
     markRead(cursor) {
       calls.push({ type: 'markRead', cursor });
@@ -202,6 +214,9 @@ function listPanelHtml(html) {
   assert(populatedTarget.innerHTML.includes('Open Product'), 'Thread header should expose Chat to Product action');
   assert(populatedTarget.innerHTML.includes('canonical-chat-input'), 'Composer should be canonical');
   assert(populatedTarget.innerHTML.includes('spec.pdf'), 'Canonical attachment metadata should render');
+  assert(populatedTarget.innerHTML.includes('Alejandro Perez'), 'Messages should render sender profile names instead of UUIDs');
+  assert(populatedTarget.innerHTML.includes('Woven and Denim Buyer - Gloria Jeans'), 'Messages should render sender role and company');
+  assert(!populatedTarget.innerHTML.includes('>18082d6a-78d9-4cd5-b72c-212aac53f725<'), 'Messages should not expose sender UUID when profile data is available');
   assert(!populatedTarget.innerHTML.includes('bad.png'), 'Data URL attachments should not render');
   assert(!populatedTarget.innerHTML.includes('legacy.pdf'), 'Legacy style path attachments should not render');
   assert(populatedTarget.innerHTML.includes('https://cdn.test/chat/2026/a1.pdf'), 'Canonical attachment metadata should resolve to a downloadable URL');
@@ -233,6 +248,7 @@ function listPanelHtml(html) {
   assert.strictEqual(sendCalls[0].message.senderCompanyId, companyId, 'Message attribution keeps sender company');
   assert.strictEqual(runtime.calls.some(call => call.type === 'uploadAttachment' && call.input.storageBucket === 'product-photos' && /^chat\//.test(call.input.storagePath)), true, 'Composer uploads pending files to stable chat storage paths');
   assert.strictEqual(runtime.calls.some(call => call.type === 'addAttachmentMetadata' && call.input.messageId && call.input.fileName === 'fit.png'), true, 'Composer persists attachment metadata against the canonical message');
+  assert(runtime.calls.findIndex(call => call.type === 'uploadAttachment') < runtime.calls.findIndex(call => call.type === 'sendMessage' && call.message.body === 'Attachment'), 'Attachment-only sends must upload before creating the chat message');
   assert.strictEqual(ui.state.pendingAttachments.length, 0, 'Successful send clears pending attachment chips');
 
   const pasteEvent = {
@@ -305,6 +321,8 @@ function listPanelHtml(html) {
   assert(mobileTarget.innerHTML.includes('chat-row-meta') && mobileTarget.innerHTML.includes('chat-list-unread'), 'Mobile list keeps status and unread metadata available');
 
   const source = fs.readFileSync('src/features/chat/chatUi.js', 'utf8');
+  const runtimeSource = fs.readFileSync('src/features/chat/chatRuntime.js', 'utf8');
+  const repositorySource = fs.readFileSync('src/features/chat/chatRepository.js', 'utf8');
   assert(!source.includes('.from('), 'Canonical Chat UI must not call Supabase tables directly');
   assert(!source.includes('.rpc('), 'Canonical Chat UI must not call Supabase RPCs directly');
   assert(!source.includes('brand_style_contexts'), 'Canonical Chat UI must not insert or reference brand_style_contexts directly');
@@ -312,6 +330,9 @@ function listPanelHtml(html) {
   assert(!source.includes('[CHAT:'), 'Canonical Chat UI must not parse legacy [CHAT:]');
   assert(!source.includes('styleChatMessages'), 'Canonical Chat UI must not render legacy chat messages');
   assert(!source.includes('setStyleChatMessages'), 'Canonical Chat UI must not dual-write legacy chat');
+  assert(runtimeSource.includes('loadSenderProfiles') && runtimeSource.includes('senderName=profile.name') && runtimeSource.includes('senderTitle=profile.title'), 'Chat runtime should hydrate sender profile display fields');
+  assert(repositorySource.includes('CHAT_PROFILE_COLUMNS') && repositorySource.includes('job_position') && repositorySource.includes('loadSenderProfiles'), 'Chat repository should fetch user names and job positions for sender display');
+  assert(source.indexOf('uploadPendingFiles(conversation,pending)') < source.indexOf('runtime.sendMessage'), 'Attachment files should upload before creating attachment-only chat messages');
 
   console.log('canonical chat UI clean cutover characterization ok');
 })();

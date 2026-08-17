@@ -145,10 +145,14 @@ function createCanonicalChatUi(options){
     if(!messages.length)return '<div class="chat-empty">No messages yet.</div>';
     return messages.map(function(message){
       var mine=helpers.currentUserId&&message.senderUserId===helpers.currentUserId();
+      var senderName=message.senderName||(mine&&helpers.currentSenderName?helpers.currentSenderName():'Team member');
+      var senderTitle=message.senderTitle||(mine&&helpers.currentSenderTitle?helpers.currentSenderTitle():'');
+      var senderCompany=message.senderCompany||(mine&&helpers.currentSenderCompany?helpers.currentSenderCompany():'');
+      var senderMeta=[senderTitle,senderCompany].filter(Boolean).join(' - ');
       var attachments=(message.attachments||[]).filter(function(attachment){
         return attachment&&attachment.storagePath&&!/^data:|^https?:|^style_/i.test(attachment.storagePath);
       });
-      var html='<div class="style-chat-msg '+(mine?'system':'')+'"><b>'+h(message.senderName||message.senderUserId||'User')+'</b><span>'+h(message.body||'')+'</span><small>'+h(formatTime(message.createdAt))+'</small>';
+      var html='<div class="style-chat-msg '+(mine?'system':'')+'"><b>'+h(senderName)+'</b>'+(senderMeta?'<em class="chat-sender-meta">'+h(senderMeta)+'</em>':'')+'<span>'+h(message.body||'')+'</span><small>'+h(formatTime(message.createdAt))+'</small>';
       attachments.forEach(function(attachment){
         var url=helpers.attachmentUrl?helpers.attachmentUrl(attachment):'';
         var meta=h([attachment.contentType,attachment.byteSize?Math.ceil(attachment.byteSize/1024)+' KB':''].filter(Boolean).join(' - '));
@@ -320,22 +324,29 @@ function createCanonicalChatUi(options){
     if(!conversation||(!text&&!pending.length))return Promise.resolve({ok:false,code:ChatIdentity.errorCodes.SEND_DENIED,message:'Choose a conversation and write a message'});
     if(!helpers.currentUserId||!helpers.currentCompanyId)return Promise.resolve({ok:false,code:ChatIdentity.errorCodes.SEND_DENIED,message:'Missing sender identity'});
     state.sending=true;
-    return runtime.sendMessage({conversationId:conversation.conversationId,senderUserId:helpers.currentUserId(),senderCompanyId:helpers.currentCompanyId(),body:text||(pending.length>1?pending.length+' attachments':'Attachment')})
+    return uploadPendingFiles(conversation,pending).then(function(uploadResult){
+      if(!uploadResult.ok){
+        state.sending=false;
+        setResultError(uploadResult,'Unable to upload attachment');
+        return uploadResult;
+      }
+      return runtime.sendMessage({conversationId:conversation.conversationId,senderUserId:helpers.currentUserId(),senderCompanyId:helpers.currentCompanyId(),body:text||(pending.length>1?pending.length+' attachments':'Attachment')})
       .then(function(result){
         if(!result.ok){state.sending=false;setResultError(result,'Unable to send message');return result;}
         if(!state.messages[conversation.conversationId])state.messages[conversation.conversationId]=[];
         state.messages[conversation.conversationId].push(result.data);
         conversation.lastMessage=result.data;
         conversation.updatedAt=result.data.createdAt||conversation.updatedAt;
-        return uploadPendingAttachments(conversation,result.data,pending).then(function(uploadResult){
+        return saveUploadedAttachmentMetadata(conversation,result.data,uploadResult.data||[]).then(function(metaResult){
           state.sending=false;
-          if(uploadResult.ok)state.pendingAttachments=[];
-          result.attachments=uploadResult.data||[];
+          if(metaResult.ok)state.pendingAttachments=[];
+          result.attachments=metaResult.data||[];
           if(result.data)result.data.attachments=result.attachments;
           sortConversations();
           return result;
         });
       })
+    })
       .catch(function(error){
         state.sending=false;
         var result=ChatIdentity.normalizeError(error);
@@ -349,34 +360,47 @@ function createCanonicalChatUi(options){
   function attachmentPathFor(conversation,file,index){
     return ['chat',conversation.conversationId,String(Date.now())+'_'+index+'_'+sanitizeFileName(file&&file.name)].join('/');
   }
-  function uploadPendingAttachments(conversation,message,pending){
+  function uploadPendingFiles(conversation,pending){
     if(!pending.length)return Promise.resolve({ok:true,data:[]});
-    if(!runtime.uploadAttachment||!runtime.addAttachmentMetadata)return Promise.resolve({ok:false,data:[],message:'Attachment upload is unavailable'});
+    if(!runtime.uploadAttachment)return Promise.resolve({ok:false,data:[],message:'Attachment upload is unavailable'});
     var uploaded=[],bucket=helpers.chatAttachmentBucket?helpers.chatAttachmentBucket():'product-photos';
     return pending.reduce(function(chain,file,index){
       return chain.then(function(){
         var path=attachmentPathFor(conversation,file,index);
         return runtime.uploadAttachment({file:file,storageBucket:bucket,storagePath:path,contentType:file.type||'application/octet-stream'})
           .then(function(uploadResult){
-            if(!uploadResult.ok){setResultError(uploadResult,'Unable to upload attachment');return uploadResult;}
-            return runtime.addAttachmentMetadata({
-              conversationId:conversation.conversationId,
-              messageId:message.messageId,
-              storageBucket:bucket,
-              storagePath:path,
-              fileName:file.name||'attachment',
-              contentType:file.type||'application/octet-stream',
-              byteSize:file.size||0,
-              uploadedBy:helpers.currentUserId()
-            }).then(function(metaResult){
-              if(!metaResult.ok){setResultError(metaResult,'Unable to save attachment');return metaResult;}
-              uploaded.push(metaResult.data);
-              return metaResult;
-            });
+            if(!uploadResult.ok)return uploadResult;
+            uploaded.push({file:file,storageBucket:bucket,storagePath:path,fileName:file.name||'attachment',contentType:file.type||'application/octet-stream',byteSize:file.size||0});
+            return uploadResult;
           });
       });
     },Promise.resolve({ok:true})).then(function(last){
       return {ok:uploaded.length===pending.length,data:uploaded,message:last&&last.message};
+    });
+  }
+  function saveUploadedAttachmentMetadata(conversation,message,uploaded){
+    if(!uploaded.length)return Promise.resolve({ok:true,data:[]});
+    if(!runtime.addAttachmentMetadata)return Promise.resolve({ok:false,data:[],message:'Attachment metadata is unavailable'});
+    var saved=[];
+    return uploaded.reduce(function(chain,item){
+      return chain.then(function(){
+        return runtime.addAttachmentMetadata({
+          conversationId:conversation.conversationId,
+          messageId:message.messageId,
+          storageBucket:item.storageBucket,
+          storagePath:item.storagePath,
+          fileName:item.fileName,
+          contentType:item.contentType,
+          byteSize:item.byteSize,
+          uploadedBy:helpers.currentUserId()
+        }).then(function(metaResult){
+          if(!metaResult.ok){setResultError(metaResult,'Unable to save attachment');return metaResult;}
+          saved.push(metaResult.data);
+          return metaResult;
+        });
+      });
+    },Promise.resolve({ok:true})).then(function(last){
+      return {ok:saved.length===uploaded.length,data:saved,message:last&&last.message};
     });
   }
   function addPendingFiles(files){

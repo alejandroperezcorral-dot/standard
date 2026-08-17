@@ -2,6 +2,7 @@ var CHAT_CONVERSATION_COLUMNS='id,conversation_type,brand_company_id,brand_compa
 var CHAT_MESSAGE_COLUMNS='id,conversation_id,sender_user_id,sender_company_id,body,body_format,edited_at,deleted_at,created_at';
 var CHAT_ATTACHMENT_COLUMNS='id,conversation_id,message_id,storage_bucket,storage_path,file_name,content_type,byte_size,uploaded_by,created_at';
 var CHAT_READ_COLUMNS='conversation_id,user_id,company_id,last_read_message_id,last_read_at,created_at,updated_at';
+var CHAT_PROFILE_COLUMNS='id,email,first_name,last_name,job_position,access_role,department,active_company_name,company_name,supplier_company';
 
 function createChatRepository(supabase){
   return {
@@ -34,6 +35,11 @@ function createChatRepository(supabase){
         .eq('conversation_id',conversationId)
         .order('created_at',{ascending:true})
         .order('id',{ascending:true});
+    },
+    loadSenderProfiles:function(userIds){
+      return supabase.from('profiles')
+        .select(CHAT_PROFILE_COLUMNS)
+        .in('id',userIds||[]);
     },
     sendMessage:function(message){
       return supabase.from('chat_messages')
