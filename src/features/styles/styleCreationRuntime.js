@@ -122,15 +122,25 @@ var StyleCreationRuntime=(function(){
     if(typeof openCreateModelModal==='function')return openCreateModelModal(normalizeStyleCreatedByType(currentCompanyType())==='SUPPLIER'?'SUPPLIER':'BUYER');
   }
 
+  function findCreatedStyle(id,rowId){
+    return (state.created||[]).filter(function(style){
+      if(!style)return false;
+      return String(style.id||'')===String(id||'')||
+        String(style.style_id||'')===String(id||'')||
+        String(style.legacy_negotiation_row_id||'')===String(rowId||'');
+    })[0]||null;
+  }
+
   function openStyle(id){
     var rowId=arguments.length>1?arguments[1]:null;
-    var row=(window.ROWS||[]).filter(function(r){
-      return (rowId&&String(r.id)===String(rowId))||
-        (id&&String(r.style_id||'')===String(id))||
-        (id&&String(r.canonical_style_id||'')===String(id))||
-        (!rowId&&id&&String(r.id)===String(id));
-    })[0];
-    if(row&&typeof openStyleDetail==='function')openStyleDetail(row.id);
+    var style=findCreatedStyle(id,rowId);
+    if(typeof openStyleDetail!=='function')return;
+    if(style&&style.id){
+      openStyleDetail({styleId:style.id,canonicalStyle:style,workspace:'my-styles'});
+      return;
+    }
+    if(rowId)openStyleDetail({rowId:rowId,workspace:'my-styles'});
+    else if(id)openStyleDetail({styleId:id,canonicalStyle:style,workspace:'my-styles'});
   }
 
   function openStyleFromKey(event,id,rowId){

@@ -35,6 +35,7 @@
 <script src="src/features/styles/styleRepository.js"></script>
 <script src="src/features/styles/styleService.js"></script>
 <script src="src/features/styles/styleCreationRepository.js"></script>
+<script src="src/features/styles/productDetailIdentity.js"></script>
 <script src="src/features/styles/styleCreationService.js"></script>
 <script src="src/features/styles/index.js"></script>
 <script src="src/features/styles/styleCreationRuntime.js"></script>
@@ -1932,7 +1933,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_detailRowId=null,_detailCanonicalStyleId='',_detailBrandStyleContextId='',_detailCanonicalStyle=null,_detailIdentity=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -5102,15 +5103,31 @@ function attachChatFile(inp,kind){
     reader.readAsDataURL(file);
   }
 }
+function resolveCurrentProductDetail(input){
+  if(typeof ProductDetailIdentity==='undefined'||!ProductDetailIdentity||typeof ProductDetailIdentity.resolve!=='function')return {ok:false,reason:'RESOLVER_UNAVAILABLE'};
+  return ProductDetailIdentity.resolve(input,{rows:ROWS||[]});
+}
+function setProductDetailIdentity(identity,fromChat){
+  _detailIdentity=identity||null;
+  _detailRowId=identity&&identity.rowId!=null?identity.rowId:null;
+  _detailCanonicalStyleId=identity&&identity.styleId||'';
+  _detailBrandStyleContextId=identity&&identity.brandStyleContextId||'';
+  _detailCanonicalStyle=identity&&identity.canonicalStyle||null;
+  _detailStyleId=_detailRowId;
+  _styleDetailNoChat=!!fromChat||!_detailRowId;
+  _chatStyleId=_detailRowId||null;
+}
 function openStyleDetail(id,fromChat){
-  _detailStyleId=parseInt(id);
-  _styleDetailNoChat=!!fromChat;
-  var r=ROWS.filter(function(x){return x.id===_detailStyleId;})[0];if(!r)return;
-  _chatStyleId=_detailStyleId;
+  var identity=resolveCurrentProductDetail(id);
+  if(!identity.ok){
+    if(identity.reason==='AMBIGUOUS_STYLE_ROWS')toast('This style has multiple commercial contexts. Open it from a specific list row.','warn');
+    return;
+  }
+  setProductDetailIdentity(identity,fromChat);
   renderStyleDetail();
   var m=document.getElementById('style-detail-modal');if(m)m.style.display='flex';
 }
-function closeStyleDetail(){var m=document.getElementById('style-detail-modal');if(m)m.style.display='none';_detailStyleId=null;_styleDetailNoChat=false;}
+function closeStyleDetail(){var m=document.getElementById('style-detail-modal');if(m)m.style.display='none';_detailStyleId=null;_detailRowId=null;_detailCanonicalStyleId='';_detailBrandStyleContextId='';_detailCanonicalStyle=null;_detailIdentity=null;_chatStyleId=null;_styleDetailNoChat=false;}
 function styleDetailPhotoSlot(r,slot,src,isMain){
   var id='style-detail-photo-'+slot+'-'+r.id;
   var label=slot===1?'Photo 1':'Photo 2';
@@ -5155,10 +5172,60 @@ function removeStyleDetailPhoto(id,slot){
   addStyleAuditMessage(r,'Photo '+slot+' removed');
   save();renderStyleDetail();renderShowroom();renderNeg();renderClosed();if(activePageName()==='chat')renderChatPage();updateBadge();
 }
+function canonicalDetailAttrs(style){return style&&style.master_attributes||{};}
+function canonicalDetailImage(style){
+  if(!style)return '';
+  if(Array.isArray(style.images)&&style.images.length){
+    var main=style.images.filter(function(img){return img&&img.main;})[0]||style.images[0];
+    return main&&main.url||'';
+  }
+  var attrs=canonicalDetailAttrs(style);
+  return attrs.photo||attrs.image||style.image_url||style.photo||'';
+}
+function canonicalDetailRef(style){
+  var attrs=canonicalDetailAttrs(style);
+  return style&&style.style_ref||attrs.style_ref||attrs.supplier_reference||style&&style.id||'No style';
+}
+function canonicalDetailTitle(style){
+  var attrs=canonicalDetailAttrs(style);
+  return style&&style.title||style&&style.description||attrs.description||attrs.title||'';
+}
+function canonicalDetailCompany(style){
+  var attrs=canonicalDetailAttrs(style);
+  return style&&style.company_name||attrs.company||attrs.brand||'';
+}
+function renderCanonicalOnlyStyleDetail(identity){
+  var body=document.getElementById('style-detail-body');if(!body)return;
+  var style=identity&&identity.canonicalStyle||{},attrs=canonicalDetailAttrs(style),img=canonicalDetailImage(style);
+  var h='<div class="drawer-topbar"><button class="drawer-back" onclick="closeStyleDetail()">&#8592; Back to My Styles</button><div class="drawer-nav-actions"><button class="drawer-nav-btn" onclick="closeStyleDetail()">Done</button></div></div>';
+  h+='<div class="style-detail-layout no-chat"><div class="style-detail-main">';
+  h+='<div class="style-detail-hero">'+(img?'<img src="'+escHtml(img)+'" alt="">':'<div class="style-detail-empty">No image</div>')+'</div>';
+  h+='<div class="drawer-title-row"><div class="drawer-title">'+escHtml(canonicalDetailRef(style))+'</div></div>';
+  h+='<div class="drawer-sub">'+escHtml(canonicalDetailTitle(style))+'</div>';
+  h+='<div class="style-status-banner"><span>Style status</span>'+statusDot(style.lifecycle_state||style.status||'PENDING')+'</div>';
+  h+='<div class="style-info-grid">';
+  [
+    ['Company',canonicalDetailCompany(style)],
+    ['Supplier',attrs.supplier||style.supplier],
+    ['Origin',attrs.origin||style.origin],
+    ['Department',style.department_name||attrs.department||style.department],
+    ['Category',style.category_name||attrs.category||style.category],
+    ['Season',attrs.season||style.season],
+    ['Costing','—']
+  ].forEach(function(p){h+='<div><span>'+p[0]+'</span><b>'+escHtml(p[1]||'-')+'</b></div>';});
+  h+='</div>';
+  h+='<div class="empty-showroom">This canonical style has no legacy negotiation row yet. Commercial actions, chat and costing are unavailable here.</div>';
+  h+='</div></div>';
+  body.innerHTML=h;
+}
 function renderStyleDetail(){
   var body=document.getElementById('style-detail-body');if(!body)return;
-  var r=ROWS.filter(function(x){return x.id===_detailStyleId;})[0];if(!r){body.innerHTML='';return;}
-  _chatStyleId=_detailStyleId;
+  var r=ROWS.filter(function(x){return x.id===_detailRowId;})[0];
+  if(!r){
+    if(_detailIdentity&&_detailIdentity.canonicalStyle){renderCanonicalOnlyStyleDetail(_detailIdentity);return;}
+    body.innerHTML='';return;
+  }
+  _chatStyleId=_detailRowId;
   ensureActiveCostingConfiguration('style-detail');
   ensureCostResultsForRows([r],'style-detail');
   var c=costDisplayForRow(r),img=r.photo||r.photo2||'',files=styleFiles(r),supplierRef=styleSupplierRef(r),fabricRef=styleFabricRef(r);
