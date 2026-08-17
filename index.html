@@ -4929,7 +4929,7 @@ function openSelectedStyleChat(){
   if(!ids.length){toast('Select one style to chat','warn');return;}
   openStyleChat(ids[0]);
 }
-var CANONICAL_CHAT_UI=null,CANONICAL_CHAT_GROUP_LOAD=null;
+var CANONICAL_CHAT_UI=null,CANONICAL_CHAT_GROUP_LOAD=null,CANONICAL_CHAT_STYLE_LOADS={};
 function canonicalChatRepository(){
   if(!window.sb||!window.ChatDomain||!ChatDomain.createRepository)return null;
   return ChatDomain.createRepository(sb);
@@ -4967,13 +4967,47 @@ function ensureCanonicalChatGroupsReady(){
 }
 function canonicalChatProductForRow(r){
   r=r||{};
+  var identity=_detailIdentity&&(_detailIdentity.rowId==null||String(_detailIdentity.rowId)===String(r.id||''))?_detailIdentity:null;
   return {
     legacyRowId:r.id,
-    styleId:r.style_id||r.canonical_style_id||'',
+    styleId:r.style_id||r.canonical_style_id||(identity&&identity.styleId)||_detailCanonicalStyleId||'',
     supplierName:r.supplier||'',
     unlocked:activeCompanyType&&activeCompanyType()==='Supplier'?true:supplierExploreAccessForBrand(r.supplier,activeCompanyName(),profileCompanyGroup()),
     brandCompanyGroupId:canonicalChatActiveGroupId()
   };
+}
+function cacheCanonicalStyleIdForRow(rowId,styleId){
+  if(!rowId||!styleId)return false;
+  (ROWS||[]).forEach(function(row){
+    if(String(row.id||'')===String(rowId||'')){row.style_id=styleId;row.canonical_style_id=row.canonical_style_id||styleId;}
+  });
+  if(String(_detailRowId||'')===String(rowId||''))_detailCanonicalStyleId=styleId;
+  return true;
+}
+function ensureCanonicalStyleReadyForRow(r){
+  r=r||{};
+  if(r.style_id||r.canonical_style_id)return Promise.resolve(r.style_id||r.canonical_style_id);
+  if(!r.id||!window.sb)return Promise.resolve('');
+  var key=String(r.id);
+  if(CANONICAL_CHAT_STYLE_LOADS[key])return CANONICAL_CHAT_STYLE_LOADS[key];
+  CANONICAL_CHAT_STYLE_LOADS[key]=Promise.resolve().then(async function(){
+    var row=await sb.from('negotiation_rows').select('id,style_id').eq('id',r.id).maybeSingle();
+    if(!row.error&&row.data&&row.data.style_id){
+      cacheCanonicalStyleIdForRow(r.id,row.data.style_id);
+      return row.data.style_id;
+    }
+    var style=await sb.from('styles').select('id,legacy_negotiation_row_id').eq('legacy_negotiation_row_id',r.id).maybeSingle();
+    if(!style.error&&style.data&&style.data.id){
+      cacheCanonicalStyleIdForRow(r.id,style.data.id);
+      return style.data.id;
+    }
+    return '';
+  }).catch(function(){return '';}).then(function(styleId){
+    delete CANONICAL_CHAT_STYLE_LOADS[key];
+    if(styleId&&_detailStyleId)renderStyleDetail();
+    return styleId;
+  });
+  return CANONICAL_CHAT_STYLE_LOADS[key];
 }
 function canonicalChatEnsure(){
   if(CANONICAL_CHAT_UI)return CANONICAL_CHAT_UI;
@@ -5029,6 +5063,11 @@ function renderCanonicalProductCommunication(r){
   var ui=canonicalChatEnsure();
   if(!ui){target.innerHTML='<div class="canonical-product-chat"><div><span>Communication</span><b>Chat unavailable</b><small>Canonical Chat runtime is not ready.</small></div><button disabled>Chat unavailable</button></div>';return;}
   var product=canonicalChatProductForRow(r);
+  if(!product.styleId&&r&&r.id){
+    target.innerHTML='<div class="canonical-product-chat"><div><span>Communication</span><b>'+escHtml(product.supplierName||'Supplier')+'</b><small>Preparing chat...</small></div><button disabled>Preparing chat</button></div>';
+    ensureCanonicalStyleReadyForRow(r);
+    return;
+  }
   if(product.styleId&&product.unlocked!==false&&!product.brandCompanyGroupId){
     target.innerHTML='<div class="canonical-product-chat"><div><span>Communication</span><b>'+escHtml(product.supplierName||'Supplier')+'</b><small>Preparing chat...</small></div><button disabled>Preparing chat</button></div>';
     ensureCanonicalChatGroupsReady();

@@ -27,5 +27,13 @@ assert(
   /Preparing chat/.test(source),
   'Product chat should show a loading state instead of final unavailable while group UUID is being fetched'
 );
+assert(
+  /function ensureCanonicalStyleReadyForRow\(r\)\{[\s\S]*sb\.from\('negotiation_rows'\)\.select\('id,style_id'\)[\s\S]*sb\.from\('styles'\)\.select\('id,legacy_negotiation_row_id'\)/.test(source),
+  'Product chat should recover canonical style_id on demand when the visible row is stale'
+);
+assert(
+  /function cacheCanonicalStyleIdForRow\(rowId,styleId\)/.test(source),
+  'Recovered canonical style_id should be cached back onto ROWS before rerendering'
+);
 
 console.log('canonical chat company group preload characterization ok');
