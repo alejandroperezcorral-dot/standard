@@ -213,6 +213,7 @@ function listPanelHtml(html) {
   assert(populatedTarget.innerHTML.includes('ST-001'), 'Populated inbox should render style conversation');
   assert(populatedTarget.innerHTML.includes('Open Product'), 'Thread header should expose Chat to Product action');
   assert(populatedTarget.innerHTML.includes('canonical-chat-input'), 'Composer should be canonical');
+  assert(populatedTarget.innerHTML.includes('chat-send-btn'), 'Composer should use a dedicated send button class');
   assert(populatedTarget.innerHTML.includes('spec.pdf'), 'Canonical attachment metadata should render');
   assert(populatedTarget.innerHTML.includes('Alejandro Perez'), 'Messages should render sender profile names instead of UUIDs');
   assert(populatedTarget.innerHTML.includes('Woven and Denim Buyer - Gloria Jeans'), 'Messages should render sender role and company');
@@ -337,6 +338,7 @@ function listPanelHtml(html) {
   assert(indexSource.includes('startCanonicalChatAutoRefresh') && indexSource.includes('setInterval(function(){pollCanonicalChatUpdates(false);},4000)'), 'Canonical Chat should poll for new messages without manual refresh');
   assert(indexSource.includes('canonicalChatComposerDraft') && indexSource.includes('restoreCanonicalChatComposerDraft(draft)'), 'Auto-refresh should preserve the current composer draft');
   assert(indexSource.includes('CANONICAL_CHAT_ALERT_COUNT') && !/function chatUnreadTotal\(\)\{\s*return 0;\s*\}/.test(indexSource), 'Canonical Chat alerts should update sidebar unread badges');
+  assert(indexSource.includes('.chat-send-btn::after') && indexSource.includes('content:none!important'), 'Mobile Chat composer should not add text glyphs over action icons');
 
   console.log('canonical chat UI clean cutover characterization ok');
 })();

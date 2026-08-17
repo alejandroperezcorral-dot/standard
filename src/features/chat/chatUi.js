@@ -176,11 +176,11 @@ function createCanonicalChatUi(options){
     return '<div class="chat-compose canonical-chat-compose" data-sending="'+(state.sending?'1':'0')+'">'
       +pendingAttachmentHtml()
       +'<div class="chat-compose-actions">'
-      +'<button class="chat-attach-btn" type="button" onclick="prepareCanonicalChatAttachment()" title="Attach file" aria-label="Attach file"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12 20.5a6 6 0 0 1-8.49-8.49l9.9-9.9a4 4 0 0 1 5.66 5.66l-9.9 9.9a2 2 0 1 1-2.83-2.83l9.2-9.19"/></svg></button>'
+      +'<button class="chat-attach-btn" type="button" onclick="prepareCanonicalChatAttachment()" title="Attach file" aria-label="Attach file"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12 20.5a6 6 0 0 1-8.49-8.49l9.9-9.9a4 4 0 0 1 5.66 5.66l-9.9 9.9a2 2 0 1 1-2.83-2.83l9.2-9.19"/></svg></button>'
       +'<input id="canonical-chat-file-input" type="file" multiple style="display:none" onchange="selectCanonicalChatFiles(this.files);this.value=\'\'">'
       +'</div>'
       +'<textarea id="canonical-chat-input" class="f-modal-inp" placeholder="Write a message" onpaste="handleCanonicalChatPaste(event)" '+(state.sending?'disabled':'')+'></textarea>'
-      +'<button type="button" onclick="sendCanonicalChatMessage()" '+(state.sending?'disabled':'')+' title="Send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M22 2 11 13"/></svg></button>'
+      +'<button class="chat-send-btn" type="button" onclick="sendCanonicalChatMessage()" '+(state.sending?'disabled':'')+' title="Send" aria-label="Send"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7Z"/><path d="M22 2 11 13"/></svg></button>'
       +'</div>';
   }
 
