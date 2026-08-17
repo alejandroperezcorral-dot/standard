@@ -19,6 +19,11 @@
   status = 200
 
 [[redirects]]
+  from = "/styles"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
   from = "/mycompany"
   to = "/index.html"
   status = 200
@@ -40,6 +45,11 @@
 
 [[redirects]]
   from = "/chat"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/canvas"
   to = "/index.html"
   status = 200
 
