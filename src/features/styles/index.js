@@ -27,6 +27,8 @@ var StylesDomain={
     service:typeof StyleCreationService==='object'?StyleCreationService:null,
     createRfq:createStyleRfqModel,
     createQuotation:createStyleQuotationModel,
+    createBrandResponse:createBrandStyleResponseModel,
+    validateBrandResponse:validateBrandStyleResponseModel,
     confirmedOutcomeClosesCanonicalStyle:confirmedOutcomeClosesCanonicalStyleModel
   }
 };

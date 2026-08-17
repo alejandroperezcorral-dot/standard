@@ -991,6 +991,17 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .style-status-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f7f7f8;border-radius:14px;padding:10px 12px;margin:10px 0 14px}
   .style-status-banner span{font-size:10px;color:#6b7280;text-transform:uppercase;font-weight:900;letter-spacing:.4px}
   .style-status-banner .status-pill{padding:6px 10px;font-size:11px}
+  .style-parent-card{border:1px solid #eceef3;background:#fff;border-radius:16px;padding:12px;margin:10px 0 14px;box-shadow:0 8px 22px rgba(15,23,42,.04)}
+  .style-parent-card span{display:block;color:#7b8498;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.45px;margin-bottom:4px}
+  .style-parent-card b{display:block;color:#111;font-size:14px;font-weight:950;line-height:1.2}
+  .style-parent-card small{display:block;color:#6b7280;font-size:11px;font-weight:750;line-height:1.35;margin-top:4px}
+  .style-parent-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .style-parent-actions button{border:none;border-radius:999px;background:#111;color:#fff;height:34px;padding:0 13px;font-size:11px;font-weight:900;font-family:inherit;cursor:pointer}
+  .style-parent-actions button.subtle{background:#f4f4f5;color:#111}
+  .style-linked-list{display:grid;gap:7px;margin-top:10px}
+  .style-linked-list button{border:1px solid #eceef3;background:#f7f7f8;border-radius:12px;padding:9px 10px;text-align:left;font-family:inherit;cursor:pointer}
+  .style-linked-list button b{font-size:12px}
+  .style-linked-list button small{margin-top:2px}
   .drawer-sub{font-size:12px;color:#6b7280;font-weight:700;margin-bottom:16px;line-height:1.45}
   .collection-row{width:100%;border:none;background:#fff;border-radius:16px;display:block;text-align:left;padding:14px;margin-bottom:8px;cursor:pointer;font-family:inherit}
   .collection-row:hover,.collection-row.all{background:#f4f4f5}
@@ -1982,7 +1993,7 @@ var COUNTRIES=[
 ];
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
-var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_detailRowId=null,_detailCanonicalStyleId='',_detailBrandStyleContextId='',_detailCanonicalStyle=null,_detailIdentity=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_detailRowId=null,_detailCanonicalStyleId='',_detailBrandStyleContextId='',_detailCanonicalStyle=null,_detailIdentity=null,_styleDetailNoChat=false,_createModelSource='BUYER',_supplierResponseParentRowId=null,_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var CANONICAL_CHAT_STYLE_CACHE={},CANONICAL_CHAT_STYLE_SUMMARY_LOAD=null;
 var CANONICAL_CHAT_POLL_TIMER=null,CANONICAL_CHAT_POLL_BUSY=false,CANONICAL_CHAT_ALERT_COUNT=0,CANONICAL_CHAT_CONVERSATION_ACTIVITY={},CANONICAL_CHAT_MESSAGE_IDS={};
 var SCOL={
@@ -2332,6 +2343,20 @@ function supplierOwnsStyle(r){
   var group=normCompanyName(profileCompanyGroup());
   return !group||normCompanyName(rowCompanyGroup(r))===group;
 }
+function brandCompanyForParentStyle(r){
+  if(!r)return '';
+  if(sourceLabel(r)==='SUPPLIER')return '';
+  var meta=styleLifecycleMeta(r),link=meta&&meta.parentBrandStyle;
+  return (link&&link.brandCompany)||r.brand_company||r.owner_company_name||r.supplier||'';
+}
+function supplierCanSeeBrandParentStyle(r){
+  if(!r||!isSupplierUser()||isAdmin())return false;
+  if(sourceLabel(r)==='SUPPLIER')return false;
+  if(rowStatus(r)==='CLOSED')return false;
+  var brand=brandCompanyForParentStyle(r),supplier=profileSupplierCompany();
+  if(!brand||!supplier)return false;
+  return supplierExploreAccessForBrand(supplier,brand,profileCompanyGroup());
+}
 function supplierCanSaveStyle(r){
   if(!r||!isSupplierUser()||isAdmin())return false;
   var supplier=normCompanyName(profileSupplierCompany());
@@ -2359,7 +2384,7 @@ function rowOwnedByActiveCompanyMember(r){
 function canAccessRowForCurrentUser(r){
   if(!r)return false;
   if(adminBypassActive())return true;
-  if(isSupplierUser())return supplierOwnsStyle(r);
+  if(isSupplierUser())return supplierOwnsStyle(r)||supplierCanSeeBrandParentStyle(r);
   if(effectiveUserId()&&r.user_id===effectiveUserId())return true;
   if(activeCompanyName()){
     if(_adminViewProfile)return rowOwnedByActiveCompanyMember(r)||styleSharedWithActiveCompany(r);
@@ -4653,6 +4678,7 @@ function setStyleMeta(r,msgs,files,collections,meta,sharedBrands,brandCollection
   if(plain)parts.push(plain);
   if(meta&&meta.supplierRef)parts.push('[SUPPLIER_REF:'+encodeURIComponent(meta.supplierRef)+']');
   if(meta&&meta.fabricRef)parts.push('[FABRIC_REF:'+encodeURIComponent(meta.fabricRef)+']');
+  if(meta&&meta.parentBrandStyle)parts.push('[PARENT_BRAND_STYLE:'+encodeURIComponent(JSON.stringify(meta.parentBrandStyle))+']');
   if(msgs&&msgs.length)parts.push('[CHAT:'+encodeURIComponent(JSON.stringify(msgs.slice(-80)))+']');
   if(files&&files.length)parts.push('[FILES:'+encodeURIComponent(JSON.stringify(files.slice(-40)))+']');
   if(collections&&collections.length)parts.push('[COLLECTIONS:'+encodeURIComponent(JSON.stringify(collections.filter(function(x,i,a){return x&&a.indexOf(x)===i;})))+']');
@@ -4669,6 +4695,11 @@ function setStyleChatMessages(r,msgs){
 }
 function setStyleCollections(r,collections){setStyleMeta(r,styleChatMessages(r),styleFiles(r),collections,styleLifecycleMeta(r),styleSharedBrands(r),styleBrandCollectionMap(r));}
 function setStyleSharedBrands(r,brands){setStyleMeta(r,styleChatMessages(r),styleFiles(r),styleCollections(r),styleLifecycleMeta(r),brands,styleBrandCollectionMap(r));}
+function setStyleParentBrandLink(r,parent){
+  var meta=styleLifecycleMeta(r)||{};
+  meta.parentBrandStyle=parent||null;
+  setStyleMeta(r,styleChatMessages(r),styleFiles(r),styleCollections(r),meta,styleSharedBrands(r),styleBrandCollectionMap(r));
+}
 function collectionMeta(name){
   name=(name||'').trim();
   var key=collectionStoreKey(name);
@@ -5517,6 +5548,52 @@ function styleDetailPhotoSlot(r,slot,src,isMain){
   h+='</div></div>';
   return h;
 }
+function supplierExistingStyleOptionsForParent(parent){
+  var supplier=normCompanyName(profileSupplierCompany());
+  return (ROWS||[]).filter(function(row){
+    if(!row||String(row.id)===String(parent&&parent.id))return false;
+    if(sourceLabel(row)!=='SUPPLIER')return false;
+    if(supplier&&normCompanyName(row.supplier)!==supplier)return false;
+    return !styleParentBrandLink(row);
+  });
+}
+function linkExistingSupplierStyleToBrandParent(parentId){
+  var parent=(ROWS||[]).filter(function(x){return String(x.id)===String(parentId);})[0];
+  if(!parent||!supplierCanSeeBrandParentStyle(parent)){toast('This Brand style is not available for your supplier','warn');return;}
+  var options=supplierExistingStyleOptionsForParent(parent);
+  if(!options.length){toast('No available supplier styles to link. Create an offer instead.','info');return;}
+  var label=options.map(function(row,index){return (index+1)+'. '+(row.modelo||'No style')+' - '+(row.desc||'');}).join('\n');
+  var answer=prompt('Select supplier style to link:\n'+label,'1');
+  var idx=parseInt(answer,10)-1;
+  if(isNaN(idx)||idx<0||idx>=options.length)return;
+  var row=options[idx];
+  setStyleParentBrandLink(row,{
+    parentRowId:parent.id,
+    parentStyleId:parent.style_id||parent.canonical_style_id||'',
+    parentRef:parent.modelo||'',
+    brandCompany:brandCompanyForParentStyle(parent)||parent.supplier||'',
+    linkedAt:new Date().toISOString(),
+    linkedBy:AUTH_USER&&AUTH_USER.id||''
+  });
+  save();pushToSupabase();renderStyleDetail();renderShowroom();toast('Supplier style linked to Brand model','ok');
+}
+function parentChildRelationshipHtml(r){
+  var link=styleParentBrandLink(r);
+  if(link){
+    return '<div class="style-parent-card"><span>Linked Brand model</span><b>'+escHtml(link.parentRef||'Brand model')+'</b><small>'+escHtml(link.brandCompany||'Brand')+'</small></div>';
+  }
+  if(!styleIsBrandParent(r))return '';
+  var responses=styleBrandResponseLinks(r,ROWS||[]);
+  var h='<div class="style-parent-card"><span>Brand parent model</span><b>'+responses.length+' supplier response'+(responses.length===1?'':'s')+'</b><small>This relation stays visible between the Brand brief and every supplier offer.</small>';
+  if(isSupplierUser()&&supplierCanSeeBrandParentStyle(r)){
+    h+='<div class="style-parent-actions"><button onclick="openSupplierResponseModal('+r.id+')">Create offer</button><button class="subtle" onclick="linkExistingSupplierStyleToBrandParent('+r.id+')">Link existing style</button></div>';
+  }
+  if(responses.length){
+    h+='<div class="style-linked-list">'+responses.map(function(row){return '<button onclick="openStyleDetail('+row.id+')"><b>'+escHtml(row.modelo||'No style')+'</b><small>'+escHtml(row.supplier||'')+'</small></button>';}).join('')+'</div>';
+  }
+  h+='</div>';
+  return h;
+}
 function uploadStyleDetailPhoto(id,slot,inp){
   if(!requireAuthAction())return;
   var file=inp&&inp.files&&inp.files[0];if(!file)return;
@@ -5615,6 +5692,7 @@ function renderStyleDetail(){
   if(supplierRef)h+='<div class="style-supplier-ref">Supplier ref: '+escHtml(supplierRef)+'</div>';
   h+='<div class="drawer-sub">'+escHtml(r.desc||'')+'</div>';
   h+='<div class="style-status-banner"><span>Style status</span>'+statusDot(rowStatus(r))+'</div>';
+  h+=parentChildRelationshipHtml(r);
   h+='<div class="style-info-grid">';
   [['Supplier',r.supplier],['Collection',showroomFolderName(r)],['Season',r.temporada],['Dept.',r.dept],['Category',r.cat],['Origin',r.origin],['FOB',costUsd(c.fob)]].forEach(function(p){h+='<div><span>'+p[0]+'</span><b>'+escHtml(p[1]||'-')+'</b></div>';});
   h+='</div>';
@@ -7723,27 +7801,66 @@ function toggleCreateCollectionMode(mode){
   if(mode==='select'&&sel.value)nw.value='';
   if(mode==='new'&&nw.value.trim())sel.value='';
 }
+function fillCreateStyleTaxonomyControls(){
+  var dept=document.getElementById('sup-dept'),cat=document.getElementById('sup-cat');
+  if(!dept||!cat)return;
+  var currentDept=dept.value,currentCat=cat.value,deptNames=Object.keys(DC||{}).sort();
+  dept.innerHTML='<option value="">Department</option>'+deptNames.map(function(d){return '<option value="'+escHtml(d)+'">'+escHtml(d)+'</option>';}).join('');
+  if(currentDept)dept.value=currentDept;
+  fillCreateStyleCategoryControls(currentCat);
+}
+function fillCreateStyleCategoryControls(currentCat){
+  var dept=document.getElementById('sup-dept'),cat=document.getElementById('sup-cat');
+  if(!dept||!cat)return;
+  var cats=((DC||{})[dept.value]||[]).slice().sort();
+  cat.innerHTML='<option value="">Category</option>'+cats.map(function(c){return '<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>';}).join('');
+  if(currentCat)cat.value=currentCat;
+}
 function openCreateModelModal(source){
   if(!requireAuthAction())return false;
   _createModelSource=source||'BUYER';
+  _supplierResponseParentRowId=null;
   _supplierShowroomPhoto=null;
-  ['sup-style','sup-fabric-ref','sup-name','sup-supplier','sup-colour','sup-season','sup-origin','sup-dept','sup-cat','sup-fob','sup-moq','sup-lead','sup-desc'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  ['sup-style','sup-fabric-ref','sup-name','sup-supplier','sup-colour','sup-season','sup-origin','sup-dept','sup-cat','sup-fob','sup-moq','sup-hod','sup-lead','sup-colours','sup-desc'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
   fillCreateCollectionControls();
-  var title=document.getElementById('supplier-showroom-title');if(title)title.textContent=_createModelSource==='SUPPLIER'?'Supplier model':'Buyer model';
-  var ok=document.getElementById('supplier-showroom-submit');if(ok)ok.textContent='Save model';
+  fillCreateStyleTaxonomyControls();
+  var isSupplier=_createModelSource==='SUPPLIER',isBrand=!isSupplier;
+  var title=document.getElementById('supplier-showroom-title');if(title)title.textContent=isSupplier?'Supplier offer model':'Brand parent model';
+  var ok=document.getElementById('supplier-showroom-submit');if(ok)ok.textContent=isSupplier?'Save offer model':'Create parent model';
   var supplier=profileSupplierCompany();
   var se=document.getElementById('sup-supplier');
   if(se){
-    se.value=_createModelSource==='SUPPLIER'?(supplier||''):'';
-    se.readOnly=!!supplier&&_createModelSource==='SUPPLIER';
+    se.value=isSupplier?(supplier||''):(activeCompanyName()||'');
+    se.readOnly=(!!supplier&&isSupplier)||isBrand;
+    se.placeholder=isSupplier?'Supplier name':'Brand';
     se.style.background=se.readOnly?'#f3f4f6':'';
   }
-  var d=document.getElementById('sup-photo-drop');if(d)d.innerHTML='Upload main product image';
+  var d=document.getElementById('sup-photo-drop');if(d)d.innerHTML=isBrand?'Upload required picture':'Upload main product image';
   var m=document.getElementById('supplier-showroom-modal');if(m)m.style.display='flex';
   setTimeout(function(){var i=document.getElementById('sup-style');if(i)i.focus();},80);
   return true;
 }
-function closeSupplierShowroomModal(){var m=document.getElementById('supplier-showroom-modal');if(m)m.style.display='none';}
+function openSupplierResponseModal(parentRowId){
+  if(!requireAuthAction())return false;
+  var parent=(ROWS||[]).filter(function(x){return String(x.id)===String(parentRowId);})[0];
+  if(!parent){toast('Parent style not found','err');return false;}
+  if(!supplierCanSeeBrandParentStyle(parent)){toast('This Brand has not unlocked your supplier access','warn');return false;}
+  openCreateModelModal('SUPPLIER');
+  _supplierResponseParentRowId=parent.id;
+  var title=document.getElementById('supplier-showroom-title');if(title)title.textContent='Offer for '+(parent.modelo||'Brand model');
+  var name=document.getElementById('sup-name');if(name)name.value=parent.desc||parent.modelo||'';
+  var dept=document.getElementById('sup-dept');if(dept){dept.value=parent.dept||'';fillCreateStyleCategoryControls(parent.cat||'');}
+  ['sup-season','sup-origin','sup-moq','sup-hod','sup-colours'].forEach(function(id){
+    var el=document.getElementById(id);if(!el)return;
+    if(id==='sup-season')el.value=parent.temporada||'';
+    if(id==='sup-origin')el.value=parent.origin||'';
+    if(id==='sup-moq')el.value=parent.units||'';
+    if(id==='sup-hod')el.value=parent.hod||parent.fsd||'';
+    if(id==='sup-colours')el.value=parent.n_colours||'';
+  });
+  var desc=document.getElementById('sup-desc');if(desc)desc.value='Response to '+(parent.modelo||'Brand model')+(parent.desc?': '+parent.desc:'');
+}
+function closeSupplierShowroomModal(){var m=document.getElementById('supplier-showroom-modal');if(m)m.style.display='none';_supplierResponseParentRowId=null;}
 function loadSupplierShowroomPhoto(inp){
   var file=inp.files&&inp.files[0];if(!file)return;
   var d=document.getElementById('sup-photo-drop');
@@ -7760,7 +7877,7 @@ async function savePublicShowroomRow(row){
     pvp_rub:row.pvp_rub||null,fob1:row.fob1||null,fob2:null,fob3:null,fob_closed:null,weight:row.weight||null,
     units:row.units||null,target_imu:row.target_imu||null,notes:row.notes||'',status:row.status||null,
     fsd:null,ch_off:null,ch_mkt:null,ch_onl:null,sell_thru:null,lc_weeks:null,photo:row.photo||null,photo2:null,
-    cust_profile:null,capsule:row.capsule||'',fashionability:null,n_colours:null,folder_id:null,updated_at:new Date().toISOString(),user_id:AUTH_USER?AUTH_USER.id:null
+    cust_profile:null,capsule:row.capsule||'',fashionability:null,n_colours:row.n_colours||null,hod:row.hod||null,folder_id:null,updated_at:new Date().toISOString(),user_id:AUTH_USER?AUTH_USER.id:null
   };
   try{
     var res=null,tries=0;
@@ -7793,6 +7910,8 @@ async function savePublicShowroomRow(row){
         mainImage:row.photo||'',
         secondaryImage:row.photo2||'',
         units:row.units||null,
+        hod:row.hod||row.fsd||null,
+        numberOfColors:row.n_colours||null,
         fob:row.fob1||row.fob_closed||null,
         department:row.dept||'',
         category:row.cat||'',
@@ -7803,6 +7922,7 @@ async function savePublicShowroomRow(row){
       if(canonicalStyle&&canonicalStyle.id)payload.style_id=canonicalStyle.id;
     }
     save();
+    _supplierResponseParentRowId=null;
     toast('Style submitted to Showroom','ok');
     return true;
   }catch(e){
@@ -7814,11 +7934,24 @@ async function savePublicShowroomRow(row){
   }
 }
 async function submitSupplierShowroomStyle(){
+  var src=(_createModelSource==='SUPPLIER')?'SUPPLIER':'BRAND';
   var style=(gV('sup-style')||'STYLE-'+Date.now()).trim();
   var fabricRef=(gV('sup-fabric-ref')||'').trim();
   var name=(gV('sup-name')||gV('sup-desc')||'New model').trim();
-  var supplier=(isSupplierUser()&&!isAdmin()?profileSupplierCompany():(gV('sup-supplier')||'Supplier')).trim();
-  var src=_createModelSource||'BUYER';
+  var supplier=(src==='SUPPLIER'?(isSupplierUser()&&!isAdmin()?profileSupplierCompany():(gV('sup-supplier')||'Supplier')):(activeCompanyName()||gV('sup-supplier')||'Brand')).trim();
+  var dept=(gV('sup-dept')||'').trim(),cat=(gV('sup-cat')||'').trim(),units=gI('sup-moq')||null,hod=(gV('sup-hod')||'').trim(),colors=gI('sup-colours')||null;
+  if(src==='BRAND'){
+    var missing=[];
+    if(!dept)missing.push('department');
+    if(!cat)missing.push('category');
+    if(!supplier)missing.push('brand');
+    if(!units)missing.push('units');
+    if(!hod)missing.push('tentative HOD');
+    if(!fabricRef)missing.push('fabric reference');
+    if(!_supplierShowroomPhoto)missing.push('picture');
+    if(!colors)missing.push('number of colors');
+    if(missing.length){toast('Required: '+missing.join(', '),'warn');return;}
+  }
   var newCol=(gV('sup-collection-new')||'').trim(),existing=(gV('sup-collection-select')||'').trim();
   if(newCol&&existing){toast('Choose one collection option only','warn');return;}
   var collection=newCol||existing;
@@ -7827,12 +7960,23 @@ async function submitSupplierShowroomStyle(){
   var row={
     id:_newRowId(),fecha:new Date().toISOString().slice(0,10),modelo:style,colour:gV('sup-colour')||'',
     desc:name,supplier:supplier,temporada:gV('sup-season')||'',origin:gV('sup-origin')||'',transport:'',pvp_rub:null,
-    fob1:gF('sup-fob')||null,fob2:null,fob3:null,fob_closed:null,weight:null,units:gI('sup-moq')||null,
-    target_imu:0.72,notes:notes,dept:gV('sup-dept')||'',cat:gV('sup-cat')||'',fsd:null,status:'PENDING',
+    fob1:gF('sup-fob')||null,fob2:null,fob3:null,fob_closed:null,weight:null,units:units,
+    target_imu:0.72,notes:notes,dept:dept,cat:cat,fsd:null,hod:hod,status:'PENDING',
     photo:_supplierShowroomPhoto||null,photo2:null,capsule:collection||'',source:src,
-    user_id:AUTH_USER?AUTH_USER.id:null,folder_id:null
+    user_id:AUTH_USER?AUTH_USER.id:null,folder_id:null,n_colours:colors
   };
   setStyleMeta(row,styleChatMessages(row),styleFiles(row),styleCollections(row),{supplierRef:style,fabricRef:fabricRef});
+  if(src==='SUPPLIER'&&_supplierResponseParentRowId){
+    var parent=(ROWS||[]).filter(function(x){return String(x.id)===String(_supplierResponseParentRowId);})[0];
+    if(parent)setStyleParentBrandLink(row,{
+      parentRowId:parent.id,
+      parentStyleId:parent.style_id||parent.canonical_style_id||'',
+      parentRef:parent.modelo||'',
+      brandCompany:brandCompanyForParentStyle(parent)||parent.supplier||'',
+      linkedAt:new Date().toISOString(),
+      linkedBy:AUTH_USER&&AUTH_USER.id||''
+    });
+  }
   if(collection)setStyleCollections(row,[collection]);
   closeSupplierShowroomModal();
   var saved=await savePublicShowroomRow(row);
@@ -10018,10 +10162,12 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&_cdId)close
       <input id="sup-colour" class="f-modal-inp" placeholder="Colour">
       <input id="sup-season" class="f-modal-inp" placeholder="Season">
       <input id="sup-origin" class="f-modal-inp" placeholder="Origin">
-      <input id="sup-dept" class="f-modal-inp" placeholder="Department">
-      <input id="sup-cat" class="f-modal-inp" placeholder="Category">
+      <select id="sup-dept" class="f-modal-inp" onchange="fillCreateStyleCategoryControls()"><option value="">Department</option></select>
+      <select id="sup-cat" class="f-modal-inp"><option value="">Category</option></select>
       <input id="sup-fob" class="f-modal-inp" type="number" step="0.01" placeholder="Indicative FOB">
       <input id="sup-moq" class="f-modal-inp" type="number" step="1" placeholder="MOQ / Units">
+      <input id="sup-hod" class="f-modal-inp" type="date" placeholder="Tentative HOD">
+      <input id="sup-colours" class="f-modal-inp" type="number" step="1" min="1" placeholder="Number of colors">
       <input id="sup-lead" class="f-modal-inp" placeholder="Lead time">
       <select id="sup-collection-select" class="f-modal-inp" onchange="toggleCreateCollectionMode('select')"><option value="">Choose collection</option></select>
       <input id="sup-collection-new" class="f-modal-inp" placeholder="Create new collection" oninput="toggleCreateCollectionMode('new')">

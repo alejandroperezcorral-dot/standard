@@ -33,7 +33,9 @@ function createCanonicalStylePayload(input,context){
     supplier:styleCreationNormText(input.supplier),
     main_image:styleCreationNormText(input.mainImage||input.photo||input.photo1),
     secondary_image:styleCreationNormText(input.secondaryImage||input.photo2),
-    units:input.units||input.moq||null
+    units:input.units||input.moq||null,
+    tentative_hod:input.tentativeHod||input.hod||input.fsd||null,
+    number_of_colors:input.numberOfColors||input.n_colours||input.colors||null
   };
   return {
     created_by:user.id||null,
@@ -84,6 +86,7 @@ function canonicalPayloadToLegacyNegotiationRow(style,input,context){
     notes:input.notes||('[SOURCE:'+normalizeStyleCreatedByType(style.created_by_type)+'] '+(style.description||'')),
     status:input.status||'PENDING',
     fsd:input.fsd||null,
+    hod:attrs.tentative_hod||input.hod||null,
     photo:attrs.main_image||null,
     photo2:attrs.secondary_image||null,
     capsule:input.collection||input.capsule||'',
@@ -91,6 +94,7 @@ function canonicalPayloadToLegacyNegotiationRow(style,input,context){
     user_id:style.created_by_user_id||style.created_by||null,
     folder_id:null,
     style_id:style.id||style.style_id||null,
+    n_colours:attrs.number_of_colors||input.n_colours||null,
     updated_at:new Date().toISOString()
   };
 }

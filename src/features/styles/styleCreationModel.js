@@ -170,6 +170,30 @@ function createStyleQuotationModel(input){
   };
 }
 
+function createBrandStyleResponseModel(input){
+  input=input||{};
+  return {
+    parent_brand_style_id:styleCreationId(input.parent_brand_style_id||input.parentBrandStyleId),
+    parent_brand_row_id:input.parent_brand_row_id||input.parentBrandRowId||null,
+    brand_company_id:input.brand_company_id||input.brandCompanyId||null,
+    supplier_company_id:input.supplier_company_id||input.supplierCompanyId||null,
+    supplier_style_id:styleCreationId(input.supplier_style_id||input.supplierStyleId),
+    supplier_row_id:input.supplier_row_id||input.supplierRowId||null,
+    response_type:input.response_type||input.responseType||'NEW_STYLE',
+    status:input.status||'ACTIVE'
+  };
+}
+
+function validateBrandStyleResponseModel(response){
+  response=response||{};
+  var missing=[];
+  if(!response.parent_brand_style_id&&!response.parent_brand_row_id)missing.push('parent_brand_style');
+  if(!response.brand_company_id)missing.push('brand_company_id');
+  if(!response.supplier_company_id)missing.push('supplier_company_id');
+  if(!response.supplier_style_id&&!response.supplier_row_id)missing.push('supplier_style');
+  return {ok:missing.length===0,missing:missing};
+}
+
 function confirmedOutcomeClosesCanonicalStyleModel(){
   return false;
 }

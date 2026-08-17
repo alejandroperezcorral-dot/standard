@@ -26,11 +26,29 @@ function styleSupplierReference(row){
 function styleFabricReference(row){
   return noteTagValueForStyle(row,'FABRIC_REF')||(row&&row.fabric_ref)||'';
 }
+function styleParentBrandLink(row){
+  return parseStyleNoteJsonTag(row,'PARENT_BRAND_STYLE',null)||null;
+}
+function styleBrandResponseLinks(row,rows){
+  var id=String(row&&row.id||''),styleId=String(row&&(row.style_id||row.canonical_style_id)||'');
+  if(!id&&!styleId)return [];
+  return (rows||[]).filter(function(candidate){
+    var link=styleParentBrandLink(candidate);
+    if(!link)return false;
+    return (id&&String(link.parentRowId||'')===id)||(styleId&&String(link.parentStyleId||'')===styleId);
+  });
+}
+function styleIsBrandParent(row){
+  return !!row&&styleSource(row)!=='SUPPLIER'&&!styleParentBrandLink(row);
+}
+function styleIsSupplierResponse(row){
+  return !!styleParentBrandLink(row);
+}
 function styleLifecycleMetadata(row){
-  return {supplierRef:styleSupplierReference(row),fabricRef:styleFabricReference(row)};
+  return {supplierRef:styleSupplierReference(row),fabricRef:styleFabricReference(row),parentBrandStyle:styleParentBrandLink(row)};
 }
 function baseStyleNotes(notes){
-  return String(notes||'').replace(/\n?\[(CHAT|FILES|COLLECTIONS|BRAND_COLLECTIONS|SUPPLIER_REF|FABRIC_REF|SHARED_BRANDS|SHARED_BRANDS_TEXT):[\s\S]*?\]/g,'').trim();
+  return String(notes||'').replace(/\n?\[(CHAT|FILES|COLLECTIONS|BRAND_COLLECTIONS|SUPPLIER_REF|FABRIC_REF|PARENT_BRAND_STYLE|SHARED_BRANDS|SHARED_BRANDS_TEXT):[\s\S]*?\]/g,'').trim();
 }
 function parseStyleNoteJsonTag(row,key,fallback){
   var notes=String((row&&row.notes)||''),match=notes.match(new RegExp('\\['+key+':([\\s\\S]*?)\\]'));
