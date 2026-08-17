@@ -2530,6 +2530,7 @@ async function loadAuthGroupMemberships(companyId,userId){
   AUTH_GROUP_NAMES=[];
   userId=userId||(AUTH_USER&&AUTH_USER.id);
   if(!userId||!companyId)return;
+  await loadCompanyGroupsForChat(companyId);
   try{
     var gr=await GroupsDomain.fetchNamesForUser(sb,companyId,userId);
     if(gr.error)return;
@@ -2537,6 +2538,24 @@ async function loadAuthGroupMemberships(companyId,userId){
       var n=x.company_groups&&x.company_groups.name;
       if(n&&!AUTH_GROUP_NAMES.some(function(v){return normCompanyName(v)===normCompanyName(n);}))AUTH_GROUP_NAMES.push(n);
     });
+  }catch(e){}
+}
+async function loadCompanyGroupsForChat(companyId){
+  if(!companyId)return;
+  var company=(COMPANY_CACHE||[]).filter(function(c){return String(c.id||'')===String(companyId||'');})[0]||activeCompany()||{};
+  var companyName=company.name||activeCompanyName();
+  if(!companyName)return;
+  try{
+    var gr=await sb.from('company_groups').select('id,name,description,created_at').eq('company_id',companyId).order('name',{ascending:true});
+    if(gr.error)return;
+    var existing=companyLocalGroups(companyName),byName={};
+    existing.forEach(function(g){byName[normCompanyName(g.name)]=g;});
+    (gr.data||[]).forEach(function(g){
+      var key=normCompanyName(g.name),local=byName[key]||{};
+      byName[key]={id:g.id,name:g.name,description:g.description||local.description||'',members:local.members||[],createdAt:g.created_at||local.createdAt||''};
+    });
+    writeCompanyLocal('groups',Object.keys(byName).map(function(k){return byName[k];}),companyName);
+    COMPANY_GROUPS_LOADED[companyKey(companyName)]=true;
   }catch(e){}
 }
 
