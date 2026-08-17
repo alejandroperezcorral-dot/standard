@@ -3,6 +3,7 @@ const vm = require('vm');
 const assert = require('assert');
 
 [
+  'src/features/costing/core/costModel001WorkbookDefaults.js',
   'src/features/costing/core/costModel001.js',
   'src/features/costing/costResultModel.js',
   'src/features/costing/costConnector.js',
@@ -11,20 +12,23 @@ const assert = require('assert');
   'src/features/costing/index.js'
 ].forEach(file => vm.runInThisContext(fs.readFileSync(file, 'utf8')));
 
-const html = fs.readFileSync('index.html', 'utf8');
+const workbookDefaults = globalThis.CostModel001WorkbookDefaults;
+assert.ok(workbookDefaults, 'missing CostModel001WorkbookDefaults');
+assert.ok(workbookDefaults.freightRoutes, 'missing workbook freight routes');
+assert.ok(workbookDefaults.assumptions, 'missing workbook assumptions');
+assert.ok(workbookDefaults.dutyRows, 'missing workbook duties');
 
-function extractDeclaration(name) {
-  const start = html.indexOf(`var ${name}=`);
-  assert.ok(start >= 0, `missing ${name}`);
-  const after = html.slice(start);
-  const end = after.indexOf(';\n');
-  assert.ok(end > 0, `missing ${name} terminator`);
-  return after.slice(4, end);
-}
-
-const context = {};
-vm.createContext(context);
-vm.runInContext(`var ${extractDeclaration('FR')}; var ${extractDeclaration('P')}; var ${extractDeclaration('DUTIES')};`, context);
+const context = {
+  FR: workbookDefaults.freightRoutes,
+  P: {
+    ins: workbookDefaults.assumptions.insuranceRate,
+    nw2gw: workbookDefaults.assumptions.grossWeightUplift,
+    rub: workbookDefaults.assumptions.rubExchangeRate,
+    eur: workbookDefaults.assumptions.eurExchangeRate,
+    tax: workbookDefaults.assumptions.vatRate
+  },
+  DUTIES: workbookDefaults.dutyRows
+};
 
 const configuration = CostingDomain.createModel001Configuration({
   assumptions: {
