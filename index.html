@@ -2341,14 +2341,17 @@ function canAccessRowForCurrentUser(r){
   return styleSharedWithActiveCompany(r);
 }
 function supplierExploreAccessForBrand(supplier,brand,group){
-  supplier=normCompanyName(supplier);brand=normCompanyName(brand);group=normCompanyName(group);
-  if(!supplier||!brand)return false;
+  if(!normCompanyName(supplier)||!normCompanyName(brand))return false;
   return (SUPPLIER_BRAND_ACCESS||[]).some(function(a){
-    if(normCompanyName(a.supplier_company)!==supplier||normCompanyName(a.brand_company)!==brand)return false;
-    if(String(a.status||'Active')!=='Active')return false;
-    var g=normCompanyName(a.group_name);
-    return !g||g===group;
+    return supplierAccessMatchesScope(a,supplier,brand,group)&&supplierAccessIsActive(a);
   });
+}
+function supplierAccessIsActive(a){return String(a&&a.status||'Active')==='Active';}
+function supplierAccessMatchesScope(a,supplier,brand,group){
+  if(!a)return false;
+  if(normCompanyName(a.supplier_company)!==normCompanyName(supplier)||normCompanyName(a.brand_company)!==normCompanyName(brand))return false;
+  var accessGroup=normCompanyName(a.group_name),currentGroup=normCompanyName(group);
+  return !accessGroup||accessGroup===currentGroup;
 }
 function supplierShareTargets(){
   var supplier=profileSupplierCompany();
@@ -6590,9 +6593,20 @@ async function toggleSupplierExploreAccess(supplier,enabled){
       SUPPLIER_BRAND_ACCESS=SUPPLIER_BRAND_ACCESS.filter(function(a){return !(normCompanyName(a.supplier_company)===normCompanyName(supplier)&&normCompanyName(a.brand_company)===normCompanyName(brand)&&normCompanyName(a.group_name)===normCompanyName(group));}).concat(r.data||[row]);
       toast('Supplier sharing unlocked','ok');
     }else{
-      var d=await sb.from('supplier_brand_access').delete().eq('supplier_company',supplier).eq('brand_company',brand).eq('group_name',group);
-      if(d.error)throw d.error;
-      SUPPLIER_BRAND_ACCESS=SUPPLIER_BRAND_ACCESS.filter(function(a){return !(normCompanyName(a.supplier_company)===normCompanyName(supplier)&&normCompanyName(a.brand_company)===normCompanyName(brand)&&normCompanyName(a.group_name)===normCompanyName(group));});
+      var lockedAt=new Date().toISOString();
+      var accessRows=await sb.from('supplier_brand_access').select('id,supplier_company,brand_company,group_name,status').eq('supplier_company',supplier).eq('brand_company',brand);
+      if(accessRows.error)throw accessRows.error;
+      var rowsToLock=(accessRows.data||[]).filter(function(a){return supplierAccessMatchesScope(a,supplier,brand,group)&&supplierAccessIsActive(a);});
+      if(rowsToLock.length){
+        for(var i=0;i<rowsToLock.length;i++){
+          var blocked=await sb.from('supplier_brand_access').update({status:'Blocked',updated_at:lockedAt}).eq('id',rowsToLock[i].id).select('id');
+          if(blocked.error)throw blocked.error;
+        }
+      }else{
+        var d=await sb.from('supplier_brand_access').update({status:'Blocked',updated_at:lockedAt}).eq('supplier_company',supplier).eq('brand_company',brand).eq('group_name',group).select('id');
+        if(d.error)throw d.error;
+      }
+      SUPPLIER_BRAND_ACCESS=SUPPLIER_BRAND_ACCESS.filter(function(a){return !supplierAccessMatchesScope(a,supplier,brand,group);});
       toast('Supplier sharing locked','ok');
     }
     renderSuppliersPage();

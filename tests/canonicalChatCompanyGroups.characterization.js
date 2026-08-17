@@ -35,5 +35,17 @@ assert(
   /function cacheCanonicalStyleIdForRow\(rowId,styleId\)/.test(source),
   'Recovered canonical style_id should be cached back onto ROWS before rerendering'
 );
+assert(
+  /function supplierAccessMatchesScope\(a,supplier,brand,group\)\{[\s\S]*return !accessGroup\|\|accessGroup===currentGroup;/.test(source),
+  'Supplier access checks should treat blank group_name as company-wide access for the current group'
+);
+assert(
+  /var rowsToLock=\(accessRows\.data\|\|\[\]\)\.filter\(function\(a\)\{return supplierAccessMatchesScope\(a,supplier,brand,group\)&&supplierAccessIsActive\(a\);\}\);/.test(source),
+  'Supplier lock should target active rows that actually grant access, including company-wide rows'
+);
+assert(
+  !/sb\.from\('supplier_brand_access'\)\.delete\(\)\.eq\('supplier_company',supplier\)\.eq\('brand_company',brand\)\.eq\('group_name',group\)/.test(source),
+  'Supplier lock should not delete an exact group row because company-wide unlock rows can grant access'
+);
 
 console.log('canonical chat company group preload characterization ok');
