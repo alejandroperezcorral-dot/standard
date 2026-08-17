@@ -25,6 +25,12 @@ assert(sideStylesButton.includes('class="platform-side-btn pin-auth-only"'), 'My
 assert(sideStylesButton.includes('<svg viewBox="0 0 24 24"'), 'My Styles must use the same inline SVG icon system as the sidebar.');
 assert(sideStylesButton.includes('stroke-width="2.2"'), 'My Styles icon stroke weight must match the sidebar visual system.');
 assert(!sideStylesButton.includes('<span>*</span>'), 'My Styles must not use the placeholder asterisk icon.');
+assert(html.includes('#side-styles{order:20}'), 'My Styles must keep the defensive sidebar order immediately after Explore.');
+assert(html.includes("styles:'<svg'+common+"), 'The normalized sidebar icon map must include a My Styles icon.');
+assert(html.includes('if(styles&&explore&&styles.previousElementSibling!==explore)'), 'Sidebar normalization must keep My Styles immediately after Explore.');
+assert(html.includes('if(collections&&styles&&collections.previousElementSibling!==styles)'), 'Sidebar normalization must keep Collections immediately after My Styles.');
+assert(html.includes('#pg-styles .my-styles-tabs .pin-chip'), 'My Styles tabs must use the shared Pinterest chip styling.');
+assert(html.includes('#pg-styles .showroom-grid'), 'My Styles must use the shared showroom grid spacing.');
 
 assert(runtime.includes('class="style-card my-style-card"'), 'My Styles cards must reuse the shared style-card primitive.');
 assert(runtime.includes('<div class="style-img">'), 'My Styles cards must reuse the shared style image block.');

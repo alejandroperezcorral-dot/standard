@@ -493,6 +493,16 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .platform-side-btn{width:44px;height:44px;border:none;border-radius:999px;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:18px;font-weight:900}
   .platform-side-btn svg{width:22px;height:22px;stroke:currentColor}
   .platform-side-btn.on,.platform-side-btn:hover{background:#111;color:#fff}
+  #side-explore{order:10}
+  #side-styles{order:20}
+  #side-collections{order:30}
+  #side-canvas{order:40}
+  #side-neg{order:50}
+  #side-suppliers{order:60}
+  #side-company{order:70}
+  .platform-side-spacer{order:80}
+  #side-admin{order:90}
+  #side-chat{order:100}
   .chat-unread-badge{position:absolute;right:6px;top:6px;min-width:17px;height:17px;border-radius:999px;background:#e60023;color:#fff;font-size:10px;font-weight:900;line-height:17px;text-align:center;padding:0 5px;box-shadow:0 0 0 2px #fff}
   .platform-side-btn.on .chat-unread-badge{box-shadow:0 0 0 2px #111}
   #side-board,#side-showroom{display:none!important}
@@ -724,6 +734,7 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .showroom-grid{column-count:6;column-gap:20px}
   .style-card{background:#fff;border:none;border-radius:18px;overflow:visible;box-shadow:none;position:relative;transition:transform .12s;break-inside:avoid;margin:0 0 20px;display:inline-block;width:100%}
   .style-card:hover{transform:translateY(-1px);box-shadow:none;border-color:transparent}
+  button.style-card{font-family:inherit;text-align:left;color:inherit;cursor:pointer;padding:0}
   .style-img{height:auto;min-height:210px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;position:relative;color:#aab4cc;border-radius:18px;overflow:hidden}
   .style-img img{width:100%;height:100%;min-height:210px;object-fit:cover;display:block}
   .style-body{padding:9px 2px 0}
@@ -734,6 +745,16 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .style-supplier-ref{display:inline-flex;align-items:center;max-width:100%;margin-top:5px;border-radius:999px;background:#f4f4f5;color:#4b5563;padding:3px 7px;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .style-desc{font-size:16px;color:#111;line-height:1.18;max-height:38px;overflow:hidden;text-transform:none;margin-top:4px;font-weight:800}
   .style-supp{font-size:14px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  #pg-styles .platform-page{max-width:none;padding:32px 28px 72px;background:#fff;min-height:calc(100vh - 52px)}
+  #pg-styles .platform-page-head{max-width:1500px;margin:0 auto 18px}
+  #pg-styles .platform-page-head h2{font-size:28px;font-weight:950;letter-spacing:-.02em}
+  #pg-styles .my-styles-tabs{max-width:1500px;margin:0 auto 28px}
+  #pg-styles .my-styles-tabs .pin-chip{background:transparent}
+  #pg-styles .my-styles-tabs .pin-chip:disabled{opacity:1;color:#111}
+  #pg-styles .showroom-grid{max-width:1500px;margin:0 auto}
+  .my-style-card .style-img{min-height:230px}
+  .my-style-card .style-img img{min-height:230px}
+  .my-style-card .style-body{padding:9px 2px 0}
   .style-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:11px}
   .style-card-actions{display:none;gap:5px;margin-top:8px}
   .style-card:hover .style-card-actions{display:flex}
@@ -8299,6 +8320,7 @@ function platformIcon(name){
   var common=' viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"';
   var icons={
     explore:'<svg'+common+'><circle cx="12" cy="12" r="9"/><path d="m15.4 8.6-2.1 4.7-4.7 2.1 2.1-4.7 4.7-2.1z"/></svg>',
+    styles:'<svg'+common+'><path d="M8 4h8l2.5 4-2.5 2v10H8V10L5.5 8 8 4z"/><path d="M9 4c.7 1.6 1.7 2.5 3 2.5S14.3 5.6 15 4"/><path d="M9.5 14h5"/></svg>',
     collections:'<svg'+common+'><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
     neg:'<svg'+common+'><path d="M12 3v18"/><path d="M17 7.5c-.7-1.3-2.2-2-4.2-2H10.5a3 3 0 0 0 0 6h3a3 3 0 0 1 0 6H11c-2 0-3.6-.8-4.3-2.1"/></svg>',
     suppliers:'<svg'+common+'><path d="M4 20V7l8-4 8 4v13"/><path d="M8 20v-7h8v7"/><path d="M9 8h.01M15 8h.01"/></svg>',
@@ -8322,7 +8344,8 @@ function normalizePlatformSidebar(){
   if(chat)chat.classList.add('pin-auth-only');
   var logo=document.querySelector('.platform-side-logo'),collections=document.getElementById('side-collections'),canvas=document.getElementById('side-canvas'),explore=document.getElementById('side-explore'),styles=document.getElementById('side-styles'),suppliers=document.getElementById('side-suppliers'),neg=document.getElementById('side-neg');
   if(explore&&logo&&explore.previousElementSibling!==logo)logo.parentNode.insertBefore(explore,logo.nextSibling);
-  if(collections&&explore&&collections.previousElementSibling!==explore)explore.parentNode.insertBefore(collections,explore.nextSibling);
+  if(styles&&explore&&styles.previousElementSibling!==explore)explore.parentNode.insertBefore(styles,explore.nextSibling);
+  if(collections&&styles&&collections.previousElementSibling!==styles)styles.parentNode.insertBefore(collections,styles.nextSibling);
   if(canvas&&collections&&canvas.previousElementSibling!==collections)collections.parentNode.insertBefore(canvas,collections.nextSibling);
   if(suppliers&&neg&&suppliers.previousElementSibling!==neg)neg.parentNode.insertBefore(suppliers,neg.nextSibling);
   if(chat&&spacer&&chat.nextElementSibling!==spacer)spacer.parentNode.insertBefore(chat,spacer);
