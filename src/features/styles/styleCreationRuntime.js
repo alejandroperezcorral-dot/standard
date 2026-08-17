@@ -94,11 +94,10 @@ var StyleCreationRuntime=(function(){
   }
 
   function renderCard(style){
-    var img=mainImage(style),id=style.legacy_negotiation_row_id||style.style_id||style.id;
-    return '<button class="style-card my-style-card" onclick="StyleCreationRuntime.openStyle(\''+esc(id)+'\')">'
+    var img=mainImage(style),canonicalId=style.id||style.style_id||'',rowId=style.legacy_negotiation_row_id||'';
+    return '<div class="style-card my-style-card" role="button" tabindex="0" data-style-id="'+esc(canonicalId)+'" data-row-id="'+esc(rowId)+'" onclick="StyleCreationRuntime.openStyle(\''+esc(canonicalId)+'\',\''+esc(rowId)+'\')" onkeydown="StyleCreationRuntime.openStyleFromKey(event,\''+esc(canonicalId)+'\',\''+esc(rowId)+'\')">'
       +'<div class="style-img">'+(img?'<img src="'+esc(img)+'" alt="" loading="lazy" decoding="async">':'<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>')+'</div>'
-      +'<b>'+esc(styleRef(style))+'</b><h3>'+esc(styleTitle(style))+'</h3><p>'+esc(styleMeta(style))+'</p>'
-      +'<small>'+esc(style.lifecycle_state||'ACTIVE')+'</small></button>';
+      +'<div class="style-body"><div class="style-meta">'+statusDot(style.lifecycle_state||'ACTIVE')+'</div><div class="style-ref">'+esc(styleRef(style)||'NO STYLE')+'</div><div class="style-desc">'+esc(styleTitle(style))+'</div><div class="style-supp">'+esc(styleMeta(style)||'No company')+'</div></div></div>';
   }
 
   async function renderMyStylesPage(){
@@ -124,8 +123,21 @@ var StyleCreationRuntime=(function(){
   }
 
   function openStyle(id){
-    var row=(window.ROWS||[]).filter(function(r){return String(r.id)===String(id);})[0];
-    if(row&&typeof openStyleChat==='function')openStyleChat(row.id);
+    var rowId=arguments.length>1?arguments[1]:null;
+    var row=(window.ROWS||[]).filter(function(r){
+      return (rowId&&String(r.id)===String(rowId))||
+        (id&&String(r.style_id||'')===String(id))||
+        (id&&String(r.canonical_style_id||'')===String(id))||
+        (!rowId&&id&&String(r.id)===String(id));
+    })[0];
+    if(row&&typeof openStyleDetail==='function')openStyleDetail(row.id);
+  }
+
+  function openStyleFromKey(event,id,rowId){
+    if(!event||event.key==='Enter'||event.key===' '){
+      if(event&&event.preventDefault)event.preventDefault();
+      openStyle(id,rowId);
+    }
   }
 
   async function persistCanonicalForLegacyRow(row,input){
@@ -182,6 +194,7 @@ var StyleCreationRuntime=(function(){
     renderMyStylesPage:renderMyStylesPage,
     openCreateStyle:openCreateStyle,
     openStyle:openStyle,
+    openStyleFromKey:openStyleFromKey,
     persistCanonicalForLegacyRow:persistCanonicalForLegacyRow,
     _state:state
   };
