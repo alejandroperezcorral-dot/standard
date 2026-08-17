@@ -19,5 +19,13 @@ assert(
   /function canonicalChatActiveGroupId\(\)\{[\s\S]*companyPersistedGroups\(activeCompanyName&&activeCompanyName\(\)\|\|''\)[\s\S]*isUuidString\(matched\.id\)/.test(source),
   'Canonical Chat must derive a UUID brand company group from persisted groups'
 );
+assert(
+  /function ensureCanonicalChatGroupsReady\(\)\{[\s\S]*sb\.from\('companies'\)\.select\('id,name,type,status'\)\.ilike\('name',companyName\)[\s\S]*loadCompanyGroupsForChat\(company\.id\)/.test(source),
+  'Canonical Chat must recover groups by active company name when session preload is missing'
+);
+assert(
+  /Preparing chat/.test(source),
+  'Product chat should show a loading state instead of final unavailable while group UUID is being fetched'
+);
 
 console.log('canonical chat company group preload characterization ok');

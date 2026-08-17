@@ -4929,7 +4929,7 @@ function openSelectedStyleChat(){
   if(!ids.length){toast('Select one style to chat','warn');return;}
   openStyleChat(ids[0]);
 }
-var CANONICAL_CHAT_UI=null;
+var CANONICAL_CHAT_UI=null,CANONICAL_CHAT_GROUP_LOAD=null;
 function canonicalChatRepository(){
   if(!window.sb||!window.ChatDomain||!ChatDomain.createRepository)return null;
   return ChatDomain.createRepository(sb);
@@ -4942,7 +4942,28 @@ function canonicalChatActiveGroupId(){
   var groupName=profileCompanyGroup&&profileCompanyGroup();
   var groups=companyPersistedGroups(activeCompanyName&&activeCompanyName()||'');
   var matched=groups.filter(function(g){return !groupName||normCompanyName(g.name)===normCompanyName(groupName);})[0]||groups[0]||null;
+  if(!(matched&&isUuidString(matched.id)))ensureCanonicalChatGroupsReady();
   return matched&&isUuidString(matched.id)?matched.id:'';
+}
+function ensureCanonicalChatGroupsReady(){
+  if(CANONICAL_CHAT_GROUP_LOAD)return CANONICAL_CHAT_GROUP_LOAD;
+  var companyName=activeCompanyName&&activeCompanyName();
+  if(!companyName||!window.sb)return Promise.resolve(false);
+  CANONICAL_CHAT_GROUP_LOAD=Promise.resolve().then(async function(){
+    var company=(COMPANY_CACHE||[]).filter(function(c){return normCompanyName(c.name)===normCompanyName(companyName);})[0]||null;
+    if(!company||!company.id){
+      var cr=await sb.from('companies').select('id,name,type,status').ilike('name',companyName).maybeSingle();
+      if(!cr.error&&cr.data)company=upsertCompanyCache(cr.data);
+    }
+    if(company&&company.id)await loadCompanyGroupsForChat(company.id);
+    return !!canonicalChatActiveGroupId();
+  }).catch(function(){return false;}).then(function(ok){
+    CANONICAL_CHAT_GROUP_LOAD=null;
+    if(activePageName&&activePageName()==='chat')renderCanonicalChatPage();
+    if(_detailStyleId)renderStyleDetail();
+    return ok;
+  });
+  return CANONICAL_CHAT_GROUP_LOAD;
 }
 function canonicalChatProductForRow(r){
   r=r||{};
@@ -5007,7 +5028,13 @@ function renderCanonicalProductCommunication(r){
   var target=document.getElementById('canonical-product-chat');if(!target)return;
   var ui=canonicalChatEnsure();
   if(!ui){target.innerHTML='<div class="canonical-product-chat"><div><span>Communication</span><b>Chat unavailable</b><small>Canonical Chat runtime is not ready.</small></div><button disabled>Chat unavailable</button></div>';return;}
-  ui.renderProductCommunication(target,canonicalChatProductForRow(r));
+  var product=canonicalChatProductForRow(r);
+  if(product.styleId&&product.unlocked!==false&&!product.brandCompanyGroupId){
+    target.innerHTML='<div class="canonical-product-chat"><div><span>Communication</span><b>'+escHtml(product.supplierName||'Supplier')+'</b><small>Preparing chat...</small></div><button disabled>Preparing chat</button></div>';
+    ensureCanonicalChatGroupsReady();
+    return;
+  }
+  ui.renderProductCommunication(target,product);
 }
 function openCanonicalStyleConversationFromProduct(styleId){
   var row=(ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===String(styleId||'');})[0]||null;
