@@ -942,8 +942,24 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   #pg-chat .chat-attachment img{display:block;width:min(260px,62vw);max-height:220px;object-fit:cover;border-radius:12px}
   #pg-chat .chat-compose{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;margin:0;padding:12px 16px max(12px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid #eceef3;box-shadow:0 -12px 30px rgba(255,255,255,.92);position:relative}
   #pg-chat .chat-compose-actions{display:flex;align-items:center;gap:6px}
-  #pg-chat .chat-attach-btn{width:42px;height:42px;border:none;border-radius:999px;background:#f3f4f6;color:#111;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:950;cursor:pointer}
+  #pg-chat .chat-attach-btn,.canonical-product-chat-embedded .chat-attach-btn{width:54px;height:54px;border:none;border-radius:999px;background:#f3f4f6;color:#111;display:inline-flex;align-items:center;justify-content:center;font-size:24px;font-weight:950;cursor:pointer}
   #pg-chat .chat-compose textarea{height:auto!important;min-height:44px;max-height:140px;resize:none!important;border-radius:18px!important;background:#f8f8f7!important;border:1px solid #e5e7eb!important;padding:12px 16px!important;margin:0}
+  #pg-chat .chat-pending-attachments,.canonical-product-chat-embedded .chat-pending-attachments{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:7px;margin-bottom:2px}
+  #pg-chat .chat-pending-attachments span,.canonical-product-chat-embedded .chat-pending-attachments span{display:inline-flex;align-items:center;gap:7px;background:#f3f4f6;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:900;color:#111}
+  #pg-chat .chat-pending-attachments button,.canonical-product-chat-embedded .chat-pending-attachments button{width:20px;height:20px;border:none;border-radius:999px;background:#111;color:#fff;font-size:11px;font-weight:900;cursor:pointer}
+  .canonical-product-chat-embedded{height:calc(100vh - 72px);min-height:560px;border:1px solid #eceef3;border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+  .canonical-product-chat-embedded .chat-thread-panel{display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:100%;min-height:0;background:#fff;overflow:hidden}
+  .canonical-product-chat-embedded .chat-model-card{margin:0;padding:14px 16px;border-bottom:1px solid #eceef3;background:#fff;min-height:82px}
+  .canonical-product-chat-embedded .chat-mobile-back{display:none}
+  .canonical-product-chat-embedded .chat-model-card .chat-row-thumb{width:56px;height:72px;border-radius:14px;background:#efefec}
+  .canonical-product-chat-embedded .chat-thread-panel .style-chat-list{height:100%;min-height:0;max-height:none;overflow:auto;border:none;border-radius:0;background:#fff;margin:0;padding:14px 16px}
+  .canonical-product-chat-embedded .chat-compose{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;margin:0;padding:12px;background:#fff;border-top:1px solid #eceef3}
+  .canonical-product-chat-embedded .chat-compose-actions{display:flex;align-items:center}
+  .canonical-product-chat-embedded .chat-compose textarea{height:auto!important;min-height:44px;max-height:120px;resize:none!important;border-radius:18px!important;background:#f8f8f7!important;border:1px solid #e5e7eb!important;padding:12px 14px!important;margin:0}
+  .canonical-product-chat-embedded .chat-compose>button,.canonical-product-chat-embedded .chat-model-open{border:none;border-radius:999px;background:#111;color:#fff;height:44px;padding:0 14px;font-size:11px;font-weight:950;font-family:inherit;cursor:pointer}
+  .canonical-product-chat-embedded .style-chat-msg{max-width:92%;border:1px solid #eceef3;background:#f7f7f8;border-radius:18px;padding:11px 13px;margin:0 0 10px;box-shadow:none}
+  .canonical-product-chat-embedded .style-chat-msg.system{margin-left:auto;background:#111;color:#fff;border-color:#111}
+  .canonical-product-chat-embedded .style-chat-msg.system b,.canonical-product-chat-embedded .style-chat-msg.system span,.canonical-product-chat-embedded .style-chat-msg.system small{color:#fff}
   body.chat-page-on #wrap{overflow:hidden!important;background:#fff}
   body.chat-page-on #main{display:block!important;padding:0!important;overflow:hidden!important;background:#fff;height:100%;min-height:0}
   body.chat-page-on #pg-chat,body.chat-page-on #pg-chat.pg.on{height:100%;min-height:0;overflow:hidden}
@@ -1958,6 +1974,7 @@ var COUNTRIES=[
 var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
 var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_detailRowId=null,_detailCanonicalStyleId='',_detailBrandStyleContextId='',_detailCanonicalStyle=null,_detailIdentity=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
+var CANONICAL_CHAT_STYLE_CACHE={},CANONICAL_CHAT_STYLE_SUMMARY_LOAD=null;
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -5012,6 +5029,51 @@ function ensureCanonicalStyleReadyForRow(r){
   });
   return CANONICAL_CHAT_STYLE_LOADS[key];
 }
+function canonicalChatStyleImage(style){
+  if(!style)return '';
+  if(style.photo||style.photo2||style.main_image)return style.photo||style.photo2||style.main_image;
+  if(Array.isArray(style.images)&&style.images.length){
+    var main=style.images.filter(function(img){return img&&img.main;})[0]||style.images[0];
+    return main&&(main.url||main.src||main.data)||'';
+  }
+  return '';
+}
+function canonicalChatStyleSummary(style){
+  style=style||{};
+  return {
+    style_id:style.id,
+    canonical_style_id:style.id,
+    modelo:style.style_ref||style.title||style.supplier_reference||'',
+    style_ref:style.style_ref||'',
+    title:style.title||'',
+    desc:style.description||'',
+    description:style.description||'',
+    supplier:style.owner_company_name||style.creator_company_name||'',
+    supplier_reference:style.supplier_reference||'',
+    photo:canonicalChatStyleImage(style),
+    images:style.images||[]
+  };
+}
+function canonicalChatStyleForId(styleId){
+  styleId=String(styleId||'');
+  if(!styleId)return null;
+  var row=(ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===styleId;})[0]||null;
+  if(row)return row;
+  if(_detailCanonicalStyle&&String(_detailCanonicalStyle.id||'')===styleId)return canonicalChatStyleSummary(_detailCanonicalStyle);
+  return CANONICAL_CHAT_STYLE_CACHE[styleId]||null;
+}
+function hydrateCanonicalChatStyleSummaries(conversations){
+  conversations=conversations||[];
+  if(!window.sb)return Promise.resolve();
+  var ids=conversations.map(function(c){return c&&c.styleId;}).filter(function(id){return id&&isUuidString(id)&&!canonicalChatStyleForId(id);});
+  ids=ids.filter(function(id,i,a){return a.indexOf(id)===i;});
+  if(!ids.length)return Promise.resolve();
+  if(CANONICAL_CHAT_STYLE_SUMMARY_LOAD)return CANONICAL_CHAT_STYLE_SUMMARY_LOAD;
+  CANONICAL_CHAT_STYLE_SUMMARY_LOAD=sb.from('styles').select('id,legacy_negotiation_row_id,style_ref,title,description,supplier_reference,images,owner_company_name,creator_company_name').in('id',ids).then(function(result){
+    if(!result.error)(result.data||[]).forEach(function(style){CANONICAL_CHAT_STYLE_CACHE[String(style.id)]=canonicalChatStyleSummary(style);});
+  }).catch(function(){}).then(function(){CANONICAL_CHAT_STYLE_SUMMARY_LOAD=null;});
+  return CANONICAL_CHAT_STYLE_SUMMARY_LOAD;
+}
 function canonicalChatEnsure(){
   if(CANONICAL_CHAT_UI)return CANONICAL_CHAT_UI;
   var runtime=canonicalChatRuntime();
@@ -5027,9 +5089,14 @@ function canonicalChatEnsure(){
       currentCompanyId:function(){return AUTH_PROFILE&&(AUTH_PROFILE.company_id||AUTH_PROFILE.active_company_id)||'';},
       openChatPage:function(){goTab('chat');},
       openProduct:function(styleId){openStyleDetail({styleId:styleId},true);},
-      styleForId:function(styleId){return (ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===String(styleId||'');})[0]||null;},
+      styleForId:canonicalChatStyleForId,
       supplierForId:function(supplierCompanyId){return derivedCompanies().filter(function(c){return String(c.id||'')===String(supplierCompanyId||'');})[0]||null;},
-      isSupplierUnlocked:function(product){return product&&product.unlocked!==false;}
+      isSupplierUnlocked:function(product){return product&&product.unlocked!==false;},
+      chatAttachmentBucket:function(){return 'product-photos';},
+      attachmentUrl:function(attachment){
+        if(!attachment||!attachment.storagePath)return '';
+        try{return sb.storage.from(attachment.storageBucket||'product-photos').getPublicUrl(attachment.storagePath).data.publicUrl||'';}catch(e){return '';}
+      }
     }
   });
   return CANONICAL_CHAT_UI;
@@ -5040,7 +5107,7 @@ function renderCanonicalChatPage(){
   var ui=canonicalChatEnsure();
   if(!ui){body.innerHTML='<div class="chat-empty">Chat is unavailable.</div>';return;}
   body.innerHTML='<div class="chat-empty">Loading conversations...</div>';
-  ui.refresh().then(function(){ui.renderGlobal(body);updatePlatformSidebar();});
+  ui.refresh().then(function(){return hydrateCanonicalChatStyleSummaries(ui.state.conversations);}).then(function(){ui.renderGlobal(body);updatePlatformSidebar();});
 }
 function selectCanonicalChatConversation(conversationId){
   var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body');if(!ui)return;
@@ -5053,13 +5120,38 @@ function backToCanonicalChatList(){
 function openCanonicalChatProduct(){
   var ui=canonicalChatEnsure();if(ui)ui.openProduct();
 }
+function canonicalChatVisibleRoot(){
+  var detail=document.getElementById('style-detail-modal');
+  if(detail&&detail.style.display==='flex')return detail;
+  return document;
+}
 function sendCanonicalChatMessage(){
-  var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body'),inp=document.getElementById('canonical-chat-input');if(!ui||!inp)return;
+  var ui=canonicalChatEnsure(),inp=canonicalChatVisibleRoot().querySelector('#canonical-chat-input');if(!ui||!inp)return;
   var text=inp.value||'';
-  ui.sendCurrentMessage(text).then(function(result){if(result.ok)inp.value='';if(body)ui.renderGlobal(body);updateChatUnreadBadge();});
+  ui.sendCurrentMessage(text).then(function(result){if(result.ok)inp.value='';renderCanonicalChatSurfaces();updateChatUnreadBadge();});
 }
 function prepareCanonicalChatAttachment(){
-  toast('Attachment upload will use private Chat storage in the upload phase','warn');
+  var inp=canonicalChatVisibleRoot().querySelector('#canonical-chat-file-input');
+  if(inp)inp.click();
+}
+function selectCanonicalChatFiles(files){
+  var ui=canonicalChatEnsure();if(!ui)return;
+  var added=ui.addPendingFiles(files);
+  if(added)renderCanonicalChatSurfaces();
+}
+function removeCanonicalChatPendingAttachment(index){
+  var ui=canonicalChatEnsure();if(!ui)return;
+  ui.removePendingAttachment(index);
+  renderCanonicalChatSurfaces();
+}
+function handleCanonicalChatPaste(event){
+  var ui=canonicalChatEnsure();if(!ui)return;
+  if(ui.handlePaste(event))renderCanonicalChatSurfaces();
+}
+function renderCanonicalChatSurfaces(){
+  var ui=canonicalChatEnsure();if(!ui)return;
+  var body=document.getElementById('chat-page-body');if(body&&activePageName&&activePageName()==='chat')ui.renderGlobal(body);
+  if(_detailStyleId)renderCanonicalProductCommunication((ROWS||[]).filter(function(x){return x.id===_detailRowId;})[0]);
 }
 function renderCanonicalProductCommunication(r){
   var target=document.getElementById('canonical-product-chat');if(!target)return;
@@ -5076,12 +5168,26 @@ function renderCanonicalProductCommunication(r){
     ensureCanonicalChatGroupsReady();
     return;
   }
-  ui.renderProductCommunication(target,product);
+  ui.refresh().then(function(){return hydrateCanonicalChatStyleSummaries(ui.state.conversations);}).then(function(){
+    return ui.renderProductConversation(target,product);
+  });
 }
 function openCanonicalStyleConversationFromProduct(styleId){
+  var detail=document.getElementById('style-detail-modal');
+  if(detail&&detail.style.display==='flex')return openCanonicalStyleConversationInDetail(styleId);
   var row=(ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===String(styleId||'');})[0]||null;
   var ui=canonicalChatEnsure();if(!ui||!row)return;
   ui.openStyleConversation(canonicalChatProductForRow(row)).then(function(result){if(!result.ok)return;renderCanonicalChatPage();});
+}
+function openCanonicalStyleConversationInDetail(styleId){
+  var row=(ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===String(styleId||'');})[0]||null;
+  var target=document.getElementById('canonical-product-chat');
+  var ui=canonicalChatEnsure();if(!ui||!row)return;
+  ui.openStyleConversation(canonicalChatProductForRow(row),{inline:true}).then(function(result){
+    if(!result.ok)return;
+    if(target)ui.renderProductConversation(target,canonicalChatProductForRow(row));
+    updateChatUnreadBadge();
+  });
 }
 function openStyleChat(id){
   if(!requireAuthAction())return;
@@ -8929,6 +9035,7 @@ function _loadFileIntoPhoto(file){
 // If clipboard has an image Ã¢â€ â€™ always capture it (regardless of what's focused)
 // If clipboard has only text Ã¢â€ â€™ pass through normally to the focused input
 document.addEventListener('paste',function(e){
+  if(e.target&&e.target.closest&&e.target.closest('.canonical-chat,.canonical-product-chat-embedded'))return;
   var items=(e.clipboardData||{}).items||[];
   var imgItem=null;
   for(var i=0;i<items.length;i++){

@@ -47,6 +47,12 @@ function createChatRepository(supabase){
         .select(CHAT_MESSAGE_COLUMNS)
         .single();
     },
+    uploadAttachment:function(input){
+      input=input||{};
+      return supabase.storage
+        .from(input.storageBucket||'product-photos')
+        .upload(input.storagePath,input.file,{contentType:input.contentType||'application/octet-stream',upsert:false});
+    },
     addAttachmentMetadata:function(attachment){
       return supabase.from('chat_message_attachments')
         .insert({

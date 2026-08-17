@@ -62,7 +62,7 @@ function runtimeFixture() {
         body: 'Latest note',
         createdAt: '2026-08-17T10:00:00Z',
         attachments: [
-          { attachmentId: 'a1', messageId: 'm1', storageBucket: 'chat', storagePath: 'chat/2026/a1.pdf', fileName: 'spec.pdf', contentType: 'application/pdf', byteSize: 2048 },
+          { attachmentId: 'a1', messageId: 'm1', storageBucket: 'product-photos', storagePath: 'chat/2026/a1.pdf', fileName: 'spec.pdf', contentType: 'application/pdf', byteSize: 2048 },
           { attachmentId: 'a2', messageId: 'm1', storagePath: 'data:image/png;base64,abc', fileName: 'bad.png', contentType: 'image/png', byteSize: 12 },
           { attachmentId: 'a3', messageId: 'm1', storagePath: 'style_901/bad.pdf', fileName: 'legacy.pdf', contentType: 'application/pdf', byteSize: 12 }
         ]
@@ -83,6 +83,14 @@ function runtimeFixture() {
     sendMessage(message) {
       calls.push({ type: 'sendMessage', message });
       return Promise.resolve({ ok: true, data: Object.assign({ messageId: 'm2', createdAt: '2026-08-17T10:01:00Z' }, message) });
+    },
+    uploadAttachment(input) {
+      calls.push({ type: 'uploadAttachment', input });
+      return Promise.resolve({ ok: true, data: { path: input.storagePath } });
+    },
+    addAttachmentMetadata(input) {
+      calls.push({ type: 'addAttachmentMetadata', input });
+      return Promise.resolve({ ok: true, data: Object.assign({ attachmentId: 'att-' + input.fileName, createdAt: '2026-08-17T10:02:00Z' }, input) });
     }
   };
 }
@@ -157,7 +165,9 @@ function listPanelHtml(html) {
       openProduct: (id) => { openedProduct = id; },
       styleForId: (id) => id === styleId ? { modelo: 'ST-001', desc: 'Denim jacket', photo: 'photo.jpg', supplier: 'Supplier A' } : null,
       supplierForId: () => ({ name: 'Supplier A' }),
-      isSupplierUnlocked: (product) => product.unlocked !== false
+      isSupplierUnlocked: (product) => product.unlocked !== false,
+      chatAttachmentBucket: () => 'product-photos',
+      attachmentUrl: (attachment) => attachment.storageBucket === 'product-photos' ? 'https://cdn.test/' + attachment.storagePath : ''
     }
   });
 
@@ -194,6 +204,12 @@ function listPanelHtml(html) {
   assert(populatedTarget.innerHTML.includes('spec.pdf'), 'Canonical attachment metadata should render');
   assert(!populatedTarget.innerHTML.includes('bad.png'), 'Data URL attachments should not render');
   assert(!populatedTarget.innerHTML.includes('legacy.pdf'), 'Legacy style path attachments should not render');
+  assert(populatedTarget.innerHTML.includes('https://cdn.test/chat/2026/a1.pdf'), 'Canonical attachment metadata should resolve to a downloadable URL');
+
+  const embeddedTarget = target();
+  await ui.renderProductConversation(embeddedTarget, { styleId, brandCompanyGroupId: groupId, supplierName: 'Supplier A', unlocked: true });
+  assert(embeddedTarget.innerHTML.includes('canonical-product-chat-embedded'), 'Style sidebar should render the same canonical thread inline when it exists');
+  assert(embeddedTarget.innerHTML.includes('ST-001'), 'Embedded Style chat should keep product name instead of UUID fallback');
 
   ui.openProduct();
   assert.strictEqual(openedProduct, styleId, 'Chat to Product uses canonical styles.id');
@@ -208,11 +224,25 @@ function listPanelHtml(html) {
 
   await ui.sendCurrentMessage('Hello');
   await ui.sendCurrentMessage('Second');
+  ui.addPendingFiles([{ name: 'fit.png', type: 'image/png', size: 4096 }]);
+  await ui.sendCurrentMessage('');
   const sendCalls = runtime.calls.filter(call => call.type === 'sendMessage');
-  assert.strictEqual(sendCalls.length, 2, 'Composer sends via runtime');
+  assert.strictEqual(sendCalls.length, 3, 'Composer sends via runtime');
   assert.strictEqual(sendCalls[0].message.conversationId, ui.state.selectedConversationId, 'Message uses selected canonical conversationId');
   assert.strictEqual(sendCalls[0].message.senderUserId, userId, 'Message attribution keeps sender user');
   assert.strictEqual(sendCalls[0].message.senderCompanyId, companyId, 'Message attribution keeps sender company');
+  assert.strictEqual(runtime.calls.some(call => call.type === 'uploadAttachment' && call.input.storageBucket === 'product-photos' && /^chat\//.test(call.input.storagePath)), true, 'Composer uploads pending files to stable chat storage paths');
+  assert.strictEqual(runtime.calls.some(call => call.type === 'addAttachmentMetadata' && call.input.messageId && call.input.fileName === 'fit.png'), true, 'Composer persists attachment metadata against the canonical message');
+  assert.strictEqual(ui.state.pendingAttachments.length, 0, 'Successful send clears pending attachment chips');
+
+  const pasteEvent = {
+    prevented: false,
+    preventDefault() { this.prevented = true; },
+    clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => ({ name: 'paste.png', type: 'image/png', size: 12 }) }] }
+  };
+  assert.strictEqual(ui.handlePaste(pasteEvent), true, 'Chat composer should capture pasted images');
+  assert.strictEqual(pasteEvent.prevented, true, 'Pasted images should not fall through to product-photo paste handler');
+  assert.strictEqual(ui.state.pendingAttachments.length, 1, 'Pasted image should become a pending chat attachment');
 
   ui.state.sending = true;
   const blocked = await ui.sendCurrentMessage('Duplicate');

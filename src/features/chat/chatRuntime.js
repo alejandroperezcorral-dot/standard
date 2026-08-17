@@ -124,6 +124,19 @@ function createChatRuntime(repository){
         .then(function(response){return chatRuntimeResult(response,normalizeChatMessage);})
         .catch(function(error){return ChatIdentity.normalizeError(error);});
     },
+    uploadAttachment:function(input){
+      input=input||{};
+      if(!repository.uploadAttachment)return Promise.resolve({ok:false,code:ChatIdentity.errorCodes.SEND_DENIED,message:'attachment storage is unavailable'});
+      if(!input.file||!input.storagePath||/^data:|^https?:/i.test(input.storagePath)){
+        return Promise.resolve({ok:false,code:ChatIdentity.errorCodes.SEND_DENIED,message:'valid attachment file and private storage path are required'});
+      }
+      return Promise.resolve(repository.uploadAttachment(input))
+        .then(function(response){
+          if(response&&response.error)return ChatIdentity.normalizeError(response.error);
+          return {ok:true,data:response&&response.data||{}};
+        })
+        .catch(function(error){return ChatIdentity.normalizeError(error);});
+    },
     markRead:function(cursor){
       cursor=cursor||{};
       if(!cursor.conversationId||!cursor.userId||!cursor.companyId){
