@@ -1977,6 +1977,7 @@ var idc=1,dc=0,sgc=0,src=0,sac=0,sfc=0,sc=11,cc=3;
 var sCol='fecha',sDir=-1,eId=null;
 var SHOWROOM_VIEW='grid',SHOWROOM_BOARD_MODE=false,SHOWROOM_SELECTED={},SHOWROOM_NO_NAME_MIGRATED=false,SHOWROOM_ADVANCED_OPEN=false,COLLECTION_SEARCH='',SUPPLIERS_SEARCH='',COLLECTION_FILTER_YEAR=String(new Date().getFullYear()),COLLECTION_FILTER_MONTH_FROM=1,COLLECTION_FILTER_MONTH_TO=12,COLLECTION_ADVANCED_OPEN=false,COLLECTION_FILTER_COMPANY='',COLLECTION_FILTER_GROUP='',SUPPLIER_BRAND_ACCESS=[],SUPPLIER_PAGE_DEPT='',SUPPLIER_PAGE_CAT='',SUPPLIER_PAGE_ORIGIN='',CANVASES=[],CANVAS_CURRENT_ID=null,CANVAS_TOOL='select',CANVAS_SELECTED=null,CANVAS_STATUS='Saved',CANVAS_HISTORY=[],CANVAS_REDO=[],CANVAS_DRAW=null,CANVAS_AREA=null,CANVAS_PAN=null,CANVAS_DRAG=null,CANVAS_RESIZE=null,CANVAS_STYLE_FILTER='',CANVAS_COLLECTION_FILTER='',_chatStyleId=null,_chatCompanyFilter='',_chatSearch='',_chatMobileThreadOpen=false,_detailStyleId=null,_detailRowId=null,_detailCanonicalStyleId='',_detailBrandStyleContextId='',_detailCanonicalStyle=null,_detailIdentity=null,_styleDetailNoChat=false,_createModelSource='BUYER',_collectionCreateContext='',_collectionEditOriginal='',_collectionScopeGroupOverride=null,_shareOverrideIds=null,_routeApplying=false;
 var CANONICAL_CHAT_STYLE_CACHE={},CANONICAL_CHAT_STYLE_SUMMARY_LOAD=null;
+var CANONICAL_CHAT_POLL_TIMER=null,CANONICAL_CHAT_POLL_BUSY=false,CANONICAL_CHAT_ALERT_COUNT=0,CANONICAL_CHAT_CONVERSATION_ACTIVITY={},CANONICAL_CHAT_MESSAGE_IDS={};
 var SCOL={
   PENDING:{bg:'#fef3c7',cl:'#92400e'},
   CLOSED:{bg:'#dcfce7',cl:'#166534'}
@@ -3350,6 +3351,7 @@ function updatePlatformSidebar(){
   var enabled=['showroom','styles','neg','closed','suppliers','company','admin','chat','canvas'].indexOf(current)>=0;
   document.body.classList.toggle('platform-sidebar-on',enabled);
   if(!enabled)return;
+  if(AUTH_USER)startCanonicalChatAutoRefresh();
   document.querySelectorAll('.pin-auth-only').forEach(function(el){el.style.display=AUTH_USER?'flex':'none';});
   document.querySelectorAll('.admin-only').forEach(function(el){el.style.display=isAdmin()?'flex':'none';});
   document.querySelectorAll('.supplier-only').forEach(function(el){el.style.display=(isSupplierUser()||isAdmin())?'flex':'none';});
@@ -5111,12 +5113,13 @@ function renderCanonicalChatPage(){
   if(!isLoggedIn()){body.innerHTML='<div class="empty-showroom">Sign in to view your chats.</div>';return;}
   var ui=canonicalChatEnsure();
   if(!ui){body.innerHTML='<div class="chat-empty">Chat is unavailable.</div>';return;}
+  CANONICAL_CHAT_ALERT_COUNT=0;updateChatUnreadBadge();startCanonicalChatAutoRefresh();
   body.innerHTML='<div class="chat-empty">Loading conversations...</div>';
   ui.refresh().then(function(){return hydrateCanonicalChatStyleSummaries(ui.state.conversations);}).then(function(){ui.renderGlobal(body);updatePlatformSidebar();});
 }
 function selectCanonicalChatConversation(conversationId){
   var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body');if(!ui)return;
-  ui.selectConversation(conversationId).then(function(){if(body)ui.renderGlobal(body);updateChatUnreadBadge();});
+  ui.selectConversation(conversationId).then(function(){CANONICAL_CHAT_ALERT_COUNT=0;if(body)ui.renderGlobal(body);rememberCanonicalChatMessages(ui);updateChatUnreadBadge();});
 }
 function backToCanonicalChatList(){
   var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body');if(!ui)return;
@@ -5160,7 +5163,68 @@ function canonicalChatSurfaceVisible(){
 function renderCanonicalChatSurfaces(){
   var ui=canonicalChatEnsure();if(!ui)return;
   var body=document.getElementById('chat-page-body');if(body&&activePageName&&activePageName()==='chat')ui.renderGlobal(body);
-  if(_detailStyleId)renderCanonicalProductCommunication((ROWS||[]).filter(function(x){return x.id===_detailRowId;})[0]);
+  if(_detailStyleId){
+    var row=(ROWS||[]).filter(function(x){return x.id===_detailRowId;})[0],target=document.getElementById('canonical-product-chat');
+    if(row&&target)ui.renderProductConversation(target,canonicalChatProductForRow(row));
+  }
+}
+function canonicalChatComposerDraft(){
+  var root=canonicalChatVisibleRoot(),inp=root&&root.querySelector?root.querySelector('#canonical-chat-input'):null;
+  return inp?inp.value:'';
+}
+function restoreCanonicalChatComposerDraft(value){
+  if(!value)return;
+  var root=canonicalChatVisibleRoot(),inp=root&&root.querySelector?root.querySelector('#canonical-chat-input'):null;
+  if(inp&&!inp.value)inp.value=value;
+}
+function rememberCanonicalChatMessages(ui){
+  if(!ui)return;
+  Object.keys(ui.state.messages||{}).forEach(function(conversationId){
+    CANONICAL_CHAT_MESSAGE_IDS[conversationId]={};
+    (ui.state.messages[conversationId]||[]).forEach(function(message){if(message&&message.messageId)CANONICAL_CHAT_MESSAGE_IDS[conversationId][message.messageId]=true;});
+  });
+  (ui.state.conversations||[]).forEach(function(c){
+    if(c&&c.conversationId)CANONICAL_CHAT_CONVERSATION_ACTIVITY[c.conversationId]=String(c.lastMessageAt||c.updatedAt||c.createdAt||'');
+  });
+}
+function canonicalChatNewRemoteMessages(ui,conversationId){
+  var known=CANONICAL_CHAT_MESSAGE_IDS[conversationId]||{},msgs=(ui.state.messages&&ui.state.messages[conversationId])||[],mine=AUTH_USER&&AUTH_USER.id||'',count=0;
+  msgs.forEach(function(message){
+    if(!message||!message.messageId||known[message.messageId])return;
+    if(message.senderUserId&&message.senderUserId!==mine)count++;
+  });
+  return count;
+}
+function startCanonicalChatAutoRefresh(){
+  if(CANONICAL_CHAT_POLL_TIMER)return;
+  CANONICAL_CHAT_POLL_TIMER=setInterval(function(){pollCanonicalChatUpdates(false);},4000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)pollCanonicalChatUpdates(true);});
+}
+function pollCanonicalChatUpdates(manual){
+  if(CANONICAL_CHAT_POLL_BUSY||!isLoggedIn()||document.hidden)return Promise.resolve();
+  var ui=canonicalChatEnsure();if(!ui)return Promise.resolve();
+  var selected=ui.state.selectedConversationId,draft=canonicalChatComposerDraft(),visible=canonicalChatSurfaceVisible()||(activePageName&&activePageName()==='chat');
+  CANONICAL_CHAT_POLL_BUSY=true;
+  return ui.refresh().then(function(){return hydrateCanonicalChatStyleSummaries(ui.state.conversations);}).then(function(){
+    var changedConversations=0;
+    (ui.state.conversations||[]).forEach(function(c){
+      if(!c||!c.conversationId)return;
+      var activity=String(c.lastMessageAt||c.updatedAt||c.createdAt||'');
+      if(CANONICAL_CHAT_CONVERSATION_ACTIVITY[c.conversationId]&&CANONICAL_CHAT_CONVERSATION_ACTIVITY[c.conversationId]!==activity&&c.conversationId!==selected)changedConversations++;
+      CANONICAL_CHAT_CONVERSATION_ACTIVITY[c.conversationId]=activity;
+    });
+    if(selected)return ui.selectConversation(selected).then(function(){
+      var incoming=canonicalChatNewRemoteMessages(ui,selected);
+      if(incoming&&!manual)toast(incoming===1?'New chat message':'New chat messages','info');
+      if(changedConversations)CANONICAL_CHAT_ALERT_COUNT+=changedConversations;
+      if(visible){renderCanonicalChatSurfaces();restoreCanonicalChatComposerDraft(draft);}
+      rememberCanonicalChatMessages(ui);updateChatUnreadBadge();
+    });
+    if(changedConversations&&!manual)toast('New chat activity','info');
+    if(changedConversations)CANONICAL_CHAT_ALERT_COUNT+=changedConversations;
+    if(visible){renderCanonicalChatSurfaces();restoreCanonicalChatComposerDraft(draft);}
+    rememberCanonicalChatMessages(ui);updateChatUnreadBadge();
+  }).catch(function(){}).then(function(){CANONICAL_CHAT_POLL_BUSY=false;});
 }
 function renderCanonicalProductCommunication(r){
   var target=document.getElementById('canonical-product-chat');if(!target)return;
@@ -5233,13 +5297,20 @@ function chatUnreadCountForRow(r,state){
   return Math.max(0,msgs.length-(parseInt(state[r.id])||0));
 }
 function chatUnreadTotal(){
-  return 0;
+  return CANONICAL_CHAT_ALERT_COUNT||0;
 }
 function updateChatUnreadBadge(){
   ['side-chat','pin-side-chat'].forEach(function(id){
     var b=document.getElementById(id);if(!b)return;
     var badge=b.querySelector('.chat-unread-badge');
     if(badge)badge.remove();
+    var unread=chatUnreadTotal();
+    if(unread>0){
+      var s=document.createElement('span');
+      s.className='chat-unread-badge';
+      s.textContent=unread>99?'99+':String(unread);
+      b.appendChild(s);
+    }
   });
 }
 function rawChatInboxRows(){

@@ -323,6 +323,7 @@ function listPanelHtml(html) {
   const source = fs.readFileSync('src/features/chat/chatUi.js', 'utf8');
   const runtimeSource = fs.readFileSync('src/features/chat/chatRuntime.js', 'utf8');
   const repositorySource = fs.readFileSync('src/features/chat/chatRepository.js', 'utf8');
+  const indexSource = fs.readFileSync('index.html', 'utf8');
   assert(!source.includes('.from('), 'Canonical Chat UI must not call Supabase tables directly');
   assert(!source.includes('.rpc('), 'Canonical Chat UI must not call Supabase RPCs directly');
   assert(!source.includes('brand_style_contexts'), 'Canonical Chat UI must not insert or reference brand_style_contexts directly');
@@ -333,6 +334,9 @@ function listPanelHtml(html) {
   assert(runtimeSource.includes('loadSenderProfiles') && runtimeSource.includes('senderName=profile.name') && runtimeSource.includes('senderTitle=profile.title'), 'Chat runtime should hydrate sender profile display fields');
   assert(repositorySource.includes('CHAT_PROFILE_COLUMNS') && repositorySource.includes('job_position') && repositorySource.includes('loadSenderProfiles'), 'Chat repository should fetch user names and job positions for sender display');
   assert(source.indexOf('uploadPendingFiles(conversation,pending)') < source.indexOf('runtime.sendMessage'), 'Attachment files should upload before creating attachment-only chat messages');
+  assert(indexSource.includes('startCanonicalChatAutoRefresh') && indexSource.includes('setInterval(function(){pollCanonicalChatUpdates(false);},4000)'), 'Canonical Chat should poll for new messages without manual refresh');
+  assert(indexSource.includes('canonicalChatComposerDraft') && indexSource.includes('restoreCanonicalChatComposerDraft(draft)'), 'Auto-refresh should preserve the current composer draft');
+  assert(indexSource.includes('CANONICAL_CHAT_ALERT_COUNT') && !/function chatUnreadTotal\(\)\{\s*return 0;\s*\}/.test(indexSource), 'Canonical Chat alerts should update sidebar unread badges');
 
   console.log('canonical chat UI clean cutover characterization ok');
 })();
