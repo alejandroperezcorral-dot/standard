@@ -119,7 +119,7 @@ var StyleCreationRuntime=(function(){
   }
 
   function openCreateStyle(){
-    if(typeof openCreateModelModal==='function')return openCreateModelModal(normalizeStyleCreatedByType(currentCompanyType())==='SUPPLIER'?'SUPPLIER':'BUYER');
+    if(typeof openCreateModelModal==='function')return openCreateModelModal(normalizeStyleCreatedByType(currentCompanyType())==='SUPPLIER'?'SUPPLIER':'BRAND');
   }
 
   function findCreatedStyle(id,rowId){

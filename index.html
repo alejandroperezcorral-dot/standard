@@ -1285,7 +1285,7 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   </div>
 </div>
 <div id="pin-create-menu" class="pin-create-menu">
-  <button id="create-buyer-model" onclick="closeCreateMenu();openStyleSidebar()">Buyer model</button>
+  <button id="create-buyer-model" onclick="closeCreateMenu();openStyleSidebar()">Brand model</button>
   <button id="create-supplier-model" onclick="closeCreateMenu();openSupplierShowroomModal()">Supplier model</button>
   <button class="pin-auth-only" onclick="closeCreateMenu();createShowroomCollection()">Collection</button>
 </div>
@@ -2419,6 +2419,20 @@ function supplierShareTargets(){
     seen[key]=1;out.push({brand:brand,group:group,label:brand+(group?' / '+group:'')});
   });
   return out.sort(function(a,b){return a.label.localeCompare(b.label);});
+}
+function unlockedBrandNamesForSupplier(supplier,group){
+  var seen={},out=[];
+  supplier=normCompanyName(supplier);
+  if(!supplier)return out;
+  (SUPPLIER_BRAND_ACCESS||[]).forEach(function(a){
+    if(!supplierAccessIsActive(a))return;
+    if(normCompanyName(a.supplier_company)!==supplier)return;
+    if(!supplierAccessMatchesScope(a,a.supplier_company,a.brand_company,group))return;
+    var brand=(a.brand_company||'').trim();
+    var key=normCompanyName(brand);
+    if(brand&&!seen[key]){seen[key]=1;out.push(brand);}
+  });
+  return out;
 }
 function canUseBuyingList(){
   return canUseBuyingListForRole(isSupplierUser(),isAdmin());
@@ -3809,20 +3823,33 @@ async function sbClearAllRows(){
 async function load(){
   setSbStatus('sync');
   try{
-    var q=selectNegotiationRowsForStyles(sb);
-    if(AUTH_PROFILE&&!isAdmin()&&isSupplierUser()&&profileSupplierCompany()){
-      q=q.eq('supplier',profileSupplierCompany());
-    }else if(AUTH_PROFILE&&!isAdmin()&&AUTH_USER&&activeCompanyName()){
-      q=q;
-    }else if(AUTH_PROFILE&&!isAdmin()){q=q.eq('user_id',AUTH_USER.id);}
-    var r1=await q;
-    if(r1.error)throw r1.error;
-    var r2=await sb.from('app_state').select('key,value');
-    if(r2.error)throw r2.error;
     try{
       var ar=await sb.from('supplier_brand_access').select('*').eq('status','Active');
       if(!ar.error)SUPPLIER_BRAND_ACCESS=ar.data||[];
     }catch(_accessErr){SUPPLIER_BRAND_ACCESS=[];}
+    var q=selectNegotiationRowsForStyles(sb),r1=null;
+    if(AUTH_PROFILE&&!isAdmin()&&isSupplierUser()&&profileSupplierCompany()){
+      var own=await selectNegotiationRowsForStyles(sb).eq('supplier',profileSupplierCompany());
+      if(own.error)throw own.error;
+      var unlockedBrands=unlockedBrandNamesForSupplier(profileSupplierCompany(),profileCompanyGroup());
+      var parentRows=[];
+      if(unlockedBrands.length){
+        var parents=await selectNegotiationRowsForStyles(sb).in('supplier',unlockedBrands).neq('status','CLOSED');
+        if(parents.error)console.warn('Unlocked Brand parent load failed',parents.error);
+        else parentRows=parents.data||[];
+      }
+      var seenRows={},merged=[];
+      (own.data||[]).concat(parentRows).forEach(function(row){var key=String(row&&row.id||'');if(key&&!seenRows[key]){seenRows[key]=1;merged.push(row);}});
+      r1={data:merged,error:null};
+    }else{
+      if(AUTH_PROFILE&&!isAdmin()&&AUTH_USER&&activeCompanyName()){
+        q=q;
+      }else if(AUTH_PROFILE&&!isAdmin()){q=q.eq('user_id',AUTH_USER.id);}
+      r1=await q;
+    }
+    if(r1.error)throw r1.error;
+    var r2=await sb.from('app_state').select('key,value');
+    if(r2.error)throw r2.error;
     var rows=r1.data,state=r2.data;
 
     if(rows&&rows.length>0){
@@ -9004,7 +9031,7 @@ function pinGlobalSearch(v){
 }
 function openStyleSidebar(){
   if(!canUseBuyingList())return openSupplierShowroomModal();
-  return openCreateModelModal('BUYER');
+  return openCreateModelModal('BRAND');
 }
 function openBoardView(){SHOWROOM_BOARD_MODE=true;SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_SOURCE='SUPPLIER';SHOWROOM_SAVED_ONLY=false;goTab('showroom');}
 function openSupplierShowroomArea(){SHOWROOM_BOARD_MODE=false;SHOWROOM_COLLECTIONS_VIEW=false;SHOWROOM_SOURCE='SUPPLIER';SHOWROOM_SAVED_ONLY=false;ExploreDomain.state.setFilter('status','');var e=document.getElementById('sh-status');if(e)e.value='';goTab('showroom');}

@@ -153,5 +153,8 @@ assert.deepStrictEqual(
 
 const indexSource = fs.readFileSync('index.html', 'utf8');
 assert(indexSource.includes("if(rowStatus(r)==='CLOSED')return false;"), 'Suppliers must not see closed Brand parent models in Explore.');
+assert(indexSource.includes('Brand model') && indexSource.includes("openCreateModelModal('BRAND')"), 'The global plus button should open the Brand parent model form for Brand users.');
+assert(indexSource.includes('unlockedBrandNamesForSupplier') && indexSource.includes(".in('supplier',unlockedBrands).neq('status','CLOSED')"), 'Supplier Explore load should fetch only unlocked non-closed Brand parent candidates.');
+assert(!/isSupplierUser\(\)&&profileSupplierCompany\(\)\)\{\s*q=q\.eq\('supplier',profileSupplierCompany\(\)\)/.test(indexSource), 'Supplier load must not pre-filter away unlocked Brand parent models.');
 
 console.log('style creation flows characterization ok');
