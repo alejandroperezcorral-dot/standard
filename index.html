@@ -39,6 +39,11 @@
 <script src="src/features/styles/styleCreationService.js"></script>
 <script src="src/features/styles/index.js"></script>
 <script src="src/features/styles/styleCreationRuntime.js"></script>
+<script src="src/features/chat/chatIdentity.js"></script>
+<script src="src/features/chat/chatRepository.js"></script>
+<script src="src/features/chat/chatRuntime.js"></script>
+<script src="src/features/chat/index.js"></script>
+<script src="src/features/chat/chatUi.js"></script>
 <script src="src/features/costing/core/costModel001WorkbookDefaults.js"></script>
 <script src="src/features/costing/core/costModel001.js"></script>
 <script src="src/features/costing/core/costConfigValidator.js"></script>
@@ -822,6 +827,25 @@ td.e:focus{background:#fffbe6;outline:1px solid #f59e0b;border-radius:2px}
   .chat-compose{display:flex;gap:8px;margin-top:10px;position:sticky;bottom:0;background:#fbfbfc;padding-top:10px;z-index:3}
   .chat-compose textarea{flex:1;min-width:0;margin:0;border-radius:18px;background:#fff}
   .chat-compose button{border:none;border-radius:999px;background:#111;color:#fff;height:44px;padding:0 18px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit;align-self:flex-end}
+  .chat-error{margin:0 0 10px;padding:10px 12px;border:1px solid #fecaca;background:#fff5f5;color:#b91c1c;border-radius:12px;font-size:12px;font-weight:800}
+  .canonical-product-chat-panel{height:auto;min-height:0;position:static;display:block}
+  .canonical-product-chat{border:1px solid #eceef3;background:#fff;border-radius:16px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+  .canonical-product-chat span{display:block;text-transform:uppercase;color:#7b8498;font-size:10px;font-weight:900;letter-spacing:.5px;margin-bottom:5px}
+  .canonical-product-chat b{display:block;color:#111;font-size:15px}
+  .canonical-product-chat small{display:block;color:#8b93aa;font-size:12px;margin-top:4px;line-height:1.35}
+  .canonical-product-chat button{border:none;border-radius:999px;background:#111;color:#fff;height:38px;padding:0 14px;font-size:11px;font-weight:950;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .canonical-product-chat button:disabled,.canonical-chat-compose button:disabled{background:#d1d5db;color:#6b7280;cursor:not-allowed}
+  .canonical-chat .chat-row{align-items:flex-start;position:relative}
+  .canonical-chat .chat-row-main{display:block;min-width:0;flex:1}
+  .canonical-chat .chat-row-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0}
+  .canonical-chat .chat-row-top b{min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .canonical-chat .chat-row-meta{display:inline-flex;align-items:center;justify-content:flex-end;gap:7px;min-width:max-content}
+  .canonical-chat .chat-row-subtitle{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .canonical-chat .chat-row-main small{display:block;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .canonical-chat .chat-status-dot{display:inline-block;width:7px;height:7px;border-radius:999px;background:#c7ccd5;box-shadow:0 0 0 2px #fff;flex:0 0 auto}
+  .canonical-chat .chat-status-dot.pending{background:#f59e0b}
+  .canonical-chat .chat-status-dot.closed{background:#16a34a}
+  .canonical-chat .chat-list-unread{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:999px;background:#e60023;color:#fff;font-size:10px;font-weight:950;line-height:18px;padding:0 5px;box-shadow:0 0 0 2px #fff;flex:0 0 auto}
   .canvas-page{height:calc(100vh - 82px);max-width:none!important;margin:0!important;padding:0!important;background:#fafaf8;overflow:hidden}
   .canvas-home{padding:34px;max-width:1440px;margin:0 auto}
   .canvas-home-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:24px}
@@ -4338,14 +4362,8 @@ function showroomSupplierAlerts(){
 }
 function openShowroomChatLink(){
   if(!requireAuthAction())return;
-  var ids=selectedShowroomIds();
-  if(ids.length)_chatStyleId=ids[0];
-  else{
-    var rows=chatInboxRows();
-    if(rows.length)_chatStyleId=rows[0].id;
-  }
-  if(_chatStyleId){goTab('chat');renderChatPage();return;}
-  toast('No showroom styles available for chat','warn');
+  goTab('chat');
+  renderCanonicalChatPage();
 }
 function setShowroomStatus(s){
   SHOWROOM_COLLECTIONS_VIEW=false;
@@ -4892,15 +4910,100 @@ function openSelectedStyleChat(){
   if(!ids.length){toast('Select one style to chat','warn');return;}
   openStyleChat(ids[0]);
 }
+var CANONICAL_CHAT_UI=null;
+function canonicalChatRepository(){
+  if(!window.sb||!window.ChatDomain||!ChatDomain.createRepository)return null;
+  return ChatDomain.createRepository(sb);
+}
+function canonicalChatRuntime(){
+  var repo=canonicalChatRepository();
+  return repo&&ChatDomain.createRuntime?ChatDomain.createRuntime(repo):null;
+}
+function canonicalChatActiveGroupId(){
+  var groupName=profileCompanyGroup&&profileCompanyGroup();
+  var groups=companyPersistedGroups(activeCompanyName&&activeCompanyName()||'');
+  var matched=groups.filter(function(g){return !groupName||normCompanyName(g.name)===normCompanyName(groupName);})[0]||groups[0]||null;
+  return matched&&isUuidString(matched.id)?matched.id:'';
+}
+function canonicalChatProductForRow(r){
+  r=r||{};
+  return {
+    legacyRowId:r.id,
+    styleId:r.style_id||r.canonical_style_id||'',
+    supplierName:r.supplier||'',
+    unlocked:activeCompanyType&&activeCompanyType()==='Supplier'?true:supplierExploreAccessForBrand(r.supplier,activeCompanyName(),profileCompanyGroup()),
+    brandCompanyGroupId:canonicalChatActiveGroupId()
+  };
+}
+function canonicalChatEnsure(){
+  if(CANONICAL_CHAT_UI)return CANONICAL_CHAT_UI;
+  var runtime=canonicalChatRuntime();
+  if(!runtime)return null;
+  CANONICAL_CHAT_UI=CanonicalChatUI.create({
+    runtime:runtime,
+    helpers:{
+      escapeHtml:escHtml,
+      toast:toast,
+      isMobile:isMobileChat,
+      currentGroupId:canonicalChatActiveGroupId,
+      currentUserId:function(){return AUTH_USER&&AUTH_USER.id||'';},
+      currentCompanyId:function(){return AUTH_PROFILE&&(AUTH_PROFILE.company_id||AUTH_PROFILE.active_company_id)||'';},
+      openChatPage:function(){goTab('chat');},
+      openProduct:function(styleId){openStyleDetail({styleId:styleId},true);},
+      styleForId:function(styleId){return (ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===String(styleId||'');})[0]||null;},
+      supplierForId:function(supplierCompanyId){return derivedCompanies().filter(function(c){return String(c.id||'')===String(supplierCompanyId||'');})[0]||null;},
+      isSupplierUnlocked:function(product){return product&&product.unlocked!==false;}
+    }
+  });
+  return CANONICAL_CHAT_UI;
+}
+function renderCanonicalChatPage(){
+  var body=document.getElementById('chat-page-body');if(!body)return;
+  if(!isLoggedIn()){body.innerHTML='<div class="empty-showroom">Sign in to view your chats.</div>';return;}
+  var ui=canonicalChatEnsure();
+  if(!ui){body.innerHTML='<div class="chat-empty">Chat is unavailable.</div>';return;}
+  body.innerHTML='<div class="chat-empty">Loading conversations...</div>';
+  ui.refresh().then(function(){ui.renderGlobal(body);updatePlatformSidebar();});
+}
+function selectCanonicalChatConversation(conversationId){
+  var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body');if(!ui)return;
+  ui.selectConversation(conversationId).then(function(){if(body)ui.renderGlobal(body);updateChatUnreadBadge();});
+}
+function backToCanonicalChatList(){
+  var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body');if(!ui)return;
+  ui.backToList();if(body)ui.renderGlobal(body);
+}
+function openCanonicalChatProduct(){
+  var ui=canonicalChatEnsure();if(ui)ui.openProduct();
+}
+function sendCanonicalChatMessage(){
+  var ui=canonicalChatEnsure(),body=document.getElementById('chat-page-body'),inp=document.getElementById('canonical-chat-input');if(!ui||!inp)return;
+  var text=inp.value||'';
+  ui.sendCurrentMessage(text).then(function(result){if(result.ok)inp.value='';if(body)ui.renderGlobal(body);updateChatUnreadBadge();});
+}
+function prepareCanonicalChatAttachment(){
+  toast('Attachment upload will use private Chat storage in the upload phase','warn');
+}
+function renderCanonicalProductCommunication(r){
+  var target=document.getElementById('canonical-product-chat');if(!target)return;
+  var ui=canonicalChatEnsure();
+  if(!ui){target.innerHTML='<div class="canonical-product-chat"><div><span>Communication</span><b>Chat unavailable</b><small>Canonical Chat runtime is not ready.</small></div><button disabled>Chat unavailable</button></div>';return;}
+  ui.renderProductCommunication(target,canonicalChatProductForRow(r));
+}
+function openCanonicalStyleConversationFromProduct(styleId){
+  var row=(ROWS||[]).filter(function(r){return String(r.style_id||r.canonical_style_id||'')===String(styleId||'');})[0]||null;
+  var ui=canonicalChatEnsure();if(!ui||!row)return;
+  ui.openStyleConversation(canonicalChatProductForRow(row)).then(function(result){if(!result.ok)return;renderCanonicalChatPage();});
+}
 function openStyleChat(id){
   if(!requireAuthAction())return;
-  _chatStyleId=parseInt(id);
-  var r=ROWS.filter(function(x){return x.id===_chatStyleId;})[0];if(!r)return;
-  if(isMobileChat())_chatMobileThreadOpen=true;
-  var active=activeCollectionRef();
-  if(SHOWROOM_COLLECTIONS_VIEW&&active&&currentStyleCollections(r).indexOf(active)<0)clearActiveCollection();
-  goTab('chat');
-  renderChatPage();
+  var r=ROWS.filter(function(x){return x.id===parseInt(id);})[0];if(!r)return;
+  var product=canonicalChatProductForRow(r);
+  if(!product.styleId||!(ChatIdentity&&ChatIdentity.uuidLike(product.styleId))){toast('This style is not ready for canonical Chat','warn');return;}
+  if(!product.brandCompanyGroupId){toast('Choose or create a company group before messaging','warn');return;}
+  if(product.unlocked===false){toast('Chat unavailable: Supplier is not unlocked for this group','warn');return;}
+  var ui=canonicalChatEnsure();if(!ui){toast('Chat is unavailable','err');return;}
+  ui.openStyleConversation(product).then(function(result){if(!result.ok)return;renderCanonicalChatPage();});
 }
 function closeStyleChat(){var m=document.getElementById('style-chat-modal');if(m)m.style.display='none';_chatStyleId=null;}
 function chatReadKey(){
@@ -4927,18 +5030,13 @@ function chatUnreadCountForRow(r,state){
   return Math.max(0,msgs.length-(parseInt(state[r.id])||0));
 }
 function chatUnreadTotal(){
-  var state=chatReadState(),total=0;
-  ROWS.forEach(function(r){total+=chatUnreadCountForRow(r,state);});
-  return total;
+  return 0;
 }
 function updateChatUnreadBadge(){
-  var total=chatUnreadTotal(),text=total>99?'99+':String(total);
   ['side-chat','pin-side-chat'].forEach(function(id){
     var b=document.getElementById(id);if(!b)return;
     var badge=b.querySelector('.chat-unread-badge');
-    if(!total){if(badge)badge.remove();return;}
-    if(!badge){badge=document.createElement('span');badge.className='chat-unread-badge';b.appendChild(badge);}
-    badge.textContent=text;
+    if(badge)badge.remove();
   });
 }
 function rawChatInboxRows(){
@@ -5048,11 +5146,7 @@ function renderChatInbox(){
   renderStyleChat();
 }
 function renderChatPage(){
-  var body=document.getElementById('chat-page-body');if(!body)return;
-  if(!isLoggedIn()){body.innerHTML='<div class="empty-showroom">Sign in to view your chats.</div>';return;}
-  body.innerHTML=chatInboxHtml(true);
-  renderStyleChat();
-  updatePlatformSidebar();
+  renderCanonicalChatPage();
 }
 function renderStyleChat(){
   var box=document.getElementById('style-chat-list');if(!box)return;
@@ -5273,16 +5367,10 @@ function renderStyleDetail(){
   h+='</div><label class="file-attach-btn">Attach file<input type="file" onchange="attachStyleFile(this)" style="display:none"></label>';
   if(!SHOWROOM_COLLECTIONS_VIEW)h+='<div class="style-detail-actions style-detail-save-bottom"><button onclick="toggleSaveShowroom('+r.id+')">'+(isShowroomSaved(r.id)?'Saved':'Save')+'</button></div>';
   h+='</div>';
-  if(!_styleDetailNoChat){
-    h+='<div class="style-detail-chat-panel">';
-    h+='<div class="style-detail-chat-head"><div class="drawer-section-title">Chat</div><button onclick="openChatsFromStyle('+r.id+')">All chats</button></div><div id="style-detail-chat-list" class="style-chat-list"></div>';
-    h+='<textarea id="style-detail-chat-input" class="f-modal-inp" style="height:70px;resize:vertical" placeholder="Write a message"></textarea>';
-    h+='<div class="f-modal-btns"><button class="f-modal-ok" onclick="sendStyleDetailMessage()">Send</button></div>';
-    h+='</div>';
-  }
+  h+='<div class="style-detail-chat-panel canonical-product-chat-panel"><div id="canonical-product-chat"></div></div>';
   h+='</div>';
   body.innerHTML=h;
-  if(!_styleDetailNoChat)renderStyleDetailChat();
+  renderCanonicalProductCommunication(r);
 }
 function toggleDetailCollectionMode(mode){
   var sel=document.getElementById('detail-collection-select'),nw=document.getElementById('detail-collection-new');
